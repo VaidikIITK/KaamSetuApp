@@ -61,7 +61,7 @@ export default function ResetPassword() {
 
         setError("");
         alert("Password reset successful!");
-        router.push("/");
+        router.push("/login");
     };
 
     return (

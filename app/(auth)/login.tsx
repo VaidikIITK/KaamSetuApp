@@ -19,11 +19,35 @@ export default function HomeScreen() {
 
   // ✅ login function
   const handleLogin = () => {
-    if (phone.length !== 10 || password.length < 4) {
-      setError("Enter valid phone number and password");
+    // ✅ 1. Empty check
+    if (!phone && !password) {
+      setError("Please enter phone number and password");
       return;
     }
 
+    if (!phone) {
+      setError("Please enter phone number");
+      return;
+    }
+
+    // ✅ 2. Phone validation
+    if (phone.length !== 10) {
+      setError("Phone number must be exactly 10 digits");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter password");
+      return;
+    }
+
+    // ✅ 3. Password validation
+    if (password.length < 4) {
+      setError("Password must be at least 4 characters long");
+      return;
+    }
+
+    // ✅ Success
     setError("");
     router.push("/(tabs)/account");
   };

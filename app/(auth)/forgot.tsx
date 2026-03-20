@@ -1,22 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
+import { router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-export default function OTP() {
-  const { phone } = useLocalSearchParams();
-
-  // OTP state
+export default function ForgotPassword() {
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
+  const inputs = useRef<Array<TextInput | null>>([]);
 
-  // password states
+  const [timer, setTimer] = useState(0);
+
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
@@ -25,15 +25,39 @@ export default function OTP() {
 
   const [error, setError] = useState("");
 
-  const inputs = useRef<(TextInput | null)[]>([]);
+  useEffect(() => {
+    inputs.current[0]?.focus();
+  }, []);
 
-  // handle OTP change
+  // OTP send
+  const handleSendOTP = () => {
+    if (!email.includes("@")) {
+      setError("Enter valid email");
+      return;
+    }
+
+    setError("");
+    alert("OTP sent 📩");
+
+    setTimer(30);
+
+    const interval = setInterval(() => {
+      setTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // OTP input
   const handleChange = (value: string, index: number) => {
     let newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // 👉 move to next box
     if (value && index < 3) {
       inputs.current[index + 1]?.focus();
     }
@@ -45,17 +69,12 @@ export default function OTP() {
     }
   };
 
-  // submit
-  const handleSubmit = () => {
+  // Reset password
+  const handleReset = () => {
     const finalOtp = otp.join("");
 
-    if (finalOtp.length !== 4) {
-      setError("Enter valid 4-digit OTP");
-      return;
-    }
-
-    if (password.length < 4) {
-      setError("Password must be at least 4 characters");
+    if (otp.some((digit) => digit === "")) {
+      setError("Fill all OTP boxes");
       return;
     }
 
@@ -64,24 +83,56 @@ export default function OTP() {
       return;
     }
 
+    if (password.length < 4) {
+      setError("Password must be at least 4 characters");
+      return;
+    }
+
     setError("");
-    alert("Account Created Successfully!");
-    router.push("/");
+    alert("Password reset successful ✅");
+
+    router.replace("/login");
   };
 
   return (
     <LinearGradient colors={["#6c4ef6", "#4a6cf7"]} style={styles.container}>
       <Text style={styles.logo}>KaamSetu</Text>
-
-      <Text style={styles.subtitle}>
-        OTP sent to <Text style={{ fontWeight: "bold" }}>{phone}</Text>
-      </Text>
+      <Text style={styles.subtitle}>Reset your password securely</Text>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Verify & Set Password</Text>
+        <Text style={styles.title}>Forgot Password</Text>
 
-        {/* 🔢 OTP BOXES */}
+        {/* Email */}
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} />
+              <TextInput
+                placeholder="Enter your email"
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.verifyBtn} onPress={handleSendOTP}>
+            <Text style={{ fontSize: 12 }}>Verify</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Timer / Resend */}
+        {timer > 0 ? (
+          <Text style={styles.timerText}>Resend OTP in {timer}s</Text>
+        ) : (
+          <TouchableOpacity onPress={handleSendOTP}>
+            <Text style={styles.resendText}>Resend OTP</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* OTP BOXES */}
         <Text style={styles.label}>Enter OTP</Text>
+
         <View style={styles.otpContainer}>
           {otp.map((digit, index) => (
             <TextInput
@@ -101,12 +152,11 @@ export default function OTP() {
           ))}
         </View>
 
-        {/* 🔒 PASSWORD */}
-        <Text style={styles.label}>Password</Text>
+        {/* Password */}
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} />
           <TextInput
-            placeholder="Enter password"
+            placeholder="Set new password"
             secureTextEntry={!showPassword}
             style={styles.input}
             value={password}
@@ -119,8 +169,7 @@ export default function OTP() {
           />
         </View>
 
-        {/* 🔒 CONFIRM PASSWORD */}
-        <Text style={styles.label}>Confirm Password</Text>
+        {/* Confirm */}
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} />
           <TextInput
@@ -137,18 +186,18 @@ export default function OTP() {
           />
         </View>
 
-        {/* ❌ ERROR */}
+        {/* Error */}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* 🔘 BUTTON */}
-        <TouchableOpacity onPress={handleSubmit}>
+        {/* Button */}
+        <TouchableOpacity onPress={handleReset}>
           <LinearGradient colors={["#6c4ef6", "#4a6cf7"]} style={styles.button}>
-            <Text style={styles.buttonText}>Submit</Text>
+            <Text style={styles.buttonText}>Reset Password</Text>
           </LinearGradient>
         </TouchableOpacity>
 
-        <Text style={styles.link} onPress={() => router.back()}>
-          Back
+        <Text style={styles.link} onPress={() => router.replace("/login")}>
+          Back to Login
         </Text>
       </View>
     </LinearGradient>
@@ -156,11 +205,7 @@ export default function OTP() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 20,
-  },
+  container: { flex: 1, justifyContent: "center", padding: 20 },
 
   logo: {
     fontSize: 34,
@@ -177,23 +222,71 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "#fff",
-    padding: 25,
+    padding: 20,
     borderRadius: 20,
-    elevation: 5,
   },
 
   title: {
-    fontSize: 18,
     textAlign: "center",
-    marginBottom: 15,
     fontWeight: "bold",
+    fontSize: 18,
   },
 
-  label: {
+  desc: {
+    textAlign: "center",
+    marginBottom: 10,
+    color: "#555",
+  },
+
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f1f1",
+    padding: 10,
+    borderRadius: 10,
     marginTop: 10,
+  },
+
+  input: {
+    flex: 1,
+    marginLeft: 10,
+  },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  verifyBtn: {
+    marginLeft: 10,
+    padding: 10,
+    backgroundColor: "#ddd",
+    borderRadius: 8,
+  },
+
+  button: {
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+
+  buttonText: {
+    color: "#fff",
+    textAlign: "center",
     fontWeight: "bold",
   },
 
+  error: {
+    color: "red",
+    textAlign: "center",
+    marginTop: 10,
+  },
+
+  link: {
+    textAlign: "center",
+    marginTop: 10,
+    color: "#555",
+  },
   otpContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -210,41 +303,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1f1f1",
-    padding: 10,
-    borderRadius: 10,
+  timerText: {
+    textAlign: "center",
     marginTop: 5,
-  },
-
-  input: {
-    flex: 1,
-    marginHorizontal: 10,
-  },
-
-  button: {
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 20,
-  },
-
-  buttonText: {
-    color: "#fff",
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-
-  link: {
-    textAlign: "center",
-    marginTop: 10,
     color: "#555",
   },
 
-  error: {
-    color: "red",
-    marginTop: 10,
+  resendText: {
     textAlign: "center",
+    marginTop: 5,
+    color: "#4a6cf7",
+  },
+
+  label: {
+    marginTop: 10,
+    fontWeight: "bold",
   },
 });
