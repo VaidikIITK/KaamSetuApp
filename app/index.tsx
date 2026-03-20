@@ -25,7 +25,7 @@ export default function HomeScreen() {
     }
 
     setError("");
-    router.push("/dashboard");
+    router.push("/(tabs)/account");
   };
 
   return (
