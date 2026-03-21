@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -19,8 +18,8 @@ export default function HomeScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   // ✅ login function
-  const handleLogin = async () => {
-    // ✅ validations
+  const handleLogin = () => {
+    // ✅ 1. Empty check
     if (!phone && !password) {
       setError("Please enter phone number and password");
       return;
@@ -31,6 +30,7 @@ export default function HomeScreen() {
       return;
     }
 
+    // ✅ 2. Phone validation
     if (phone.length !== 10) {
       setError("Phone number must be exactly 10 digits");
       return;
@@ -41,46 +41,15 @@ export default function HomeScreen() {
       return;
     }
 
+    // ✅ 3. Password validation
     if (password.length < 4) {
       setError("Password must be at least 4 characters long");
       return;
     }
 
-    try {
-      setError("");
-
-      const res = await fetch("http://172.23.36.127:8000/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          phone,
-          password,
-        }),
-      });
-
-      const data = await res.json(); // ✅ pehle data lo
-
-      if (!res.ok) {
-        setError(data.message || "Login failed");
-        return;
-      }
-
-      console.log("LOGIN SUCCESS:", data);
-
-      // ✅ STEP 2A: token save
-      await AsyncStorage.setItem("token", data.token);
-
-      // ✅ STEP 2B: user save
-      await AsyncStorage.setItem("user", JSON.stringify(data.user));
-
-      // ✅ STEP 2C: redirect
-      router.replace("/(tabs)");
-    } catch (err) {
-      console.log(err);
-      setError("Server error");
-    }
+    // ✅ Success
+    setError("");
+    router.replace("../(tabs)/account");
   };
 
   return (

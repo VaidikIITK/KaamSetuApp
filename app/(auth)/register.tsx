@@ -67,48 +67,86 @@ export default function Register() {
   };
 
   // OTP
-  const handleSendOTP = () => {
-    if (!email.includes("@")) {
-      setError("Enter valid email");
-      return;
-    }
+  const handleSendOTP = async () => {
+    try {
+      if (!email.includes("@")) {
+        setError("Enter valid email");
+        return;
+      }
 
-    setError("");
-    alert("OTP sent 📩");
-
-    setTimer(30); // start timer
-
-    const interval = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
+      const res = await fetch("http://172.23.36.127:8000/api/auth/send-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
       });
-    }, 1000);
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message);
+        return;
+      }
+
+      alert("OTP sent to email 📩");
+
+      setTimer(30);
+    } catch (err) {
+      console.log(err);
+      setError("Error sending OTP");
+    }
   };
 
-  const handleRegister = () => {
-    if (!name || !email || !password || !confirm || !phone) {
-      setError("Fill all required fields");
-      return;
-    }
+  const handleRegister = async () => {
+    try {
+      if (!name || !email || !password || !confirm || !phone) {
+        setError("Fill all required fields");
+        return;
+      }
 
-    if (password !== confirm) {
-      setError("Passwords do not match");
-      return;
-    }
+      if (password !== confirm) {
+        setError("Passwords do not match");
+        return;
+      }
 
-    const finalOtp = otp.join("");
-    if (!/^\d{4}$/.test(finalOtp)) {
-      setError("Enter valid 4-digit OTP");
-      return;
-    }
+      const finalOtp = otp.join("");
 
-    setError("");
-    alert("Registered Successfully ✅");
-    router.replace("/login");
+      if (!/^\d{4}$/.test(finalOtp)) {
+        setError("Enter valid OTP");
+        return;
+      }
+
+      const res = await fetch("http://172.23.36.127:8000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          phone,
+          password,
+          address,
+          skills: selectedTags,
+          otp: finalOtp, // 🔥 IMPORTANT
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message);
+        return;
+      }
+
+      alert("Registered Successfully ✅");
+
+      router.replace("/(auth)/login");
+    } catch (err) {
+      console.log(err);
+      setError("Server error");
+    }
   };
 
   return (
