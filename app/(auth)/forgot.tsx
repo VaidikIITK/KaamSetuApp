@@ -48,7 +48,7 @@ export default function ForgotPassword() {
         return;
       }
 
-      const res = await fetch("http://172.23.36.127:8000/api/auth/send-otp", {
+      const res = await fetch("http://172.27.16.252:8000/api/auth/send-otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -114,7 +114,7 @@ export default function ForgotPassword() {
       }
       console.log("API CALL START");
       const res = await fetch(
-        "http://172.23.36.127:8000/api/auth/reset-password",
+        "http://172.27.16.252:8000/api/auth/reset-password",
         {
           method: "POST",
           headers: {
