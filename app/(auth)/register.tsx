@@ -14,6 +14,8 @@ import {
 } from "react-native";
 
 export default function Register() {
+  const [isWorker, setIsWorker] = useState(false);
+  const [role, setRole] = useState("user");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
@@ -143,8 +145,9 @@ export default function Register() {
           phone,
           password,
           address,
-          skills: selectedTags,
-          otp: finalOtp, // 🔥 IMPORTANT
+          skills: isWorker ? selectedTags : [],
+          role: isWorker ? "worker" : "user",
+          otp: finalOtp,
         }),
       });
 
@@ -189,6 +192,28 @@ export default function Register() {
               value={name}
               onChange={setName}
             />
+
+            {/* Worker Checkbox */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setIsWorker(!isWorker)}
+                style={{ marginRight: 10 }}
+              >
+                <Ionicons
+                  name={isWorker ? "checkbox" : "square-outline"}
+                  size={22}
+                  color="#4a6cf7"
+                />
+              </TouchableOpacity>
+
+              <Text>I am a Worker</Text>
+            </View>
 
             {/* Email + OTP */}
             <View style={styles.row}>
@@ -274,48 +299,53 @@ export default function Register() {
             />
 
             {/* Tags */}
-            <Text style={styles.label}>Worker Tags</Text>
+            {isWorker && (
+              <>
+                <Text style={styles.label}>Worker Tags</Text>
 
-            <View style={styles.tagContainer}>
-              {suggestions.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.tag,
-                    selectedTags.includes(item) && {
-                      backgroundColor: "#4a6cf7",
-                    },
-                  ]}
-                  onPress={() => addTag(item)}
-                >
-                  <Text style={{ color: "#fff" }}>{item}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.tagContainer}>
-              {selectedTags.map((tag) => (
-                <View key={tag} style={styles.tag}>
-                  <Text style={{ color: "#fff" }}>{tag}</Text>
-                  <Text style={styles.remove} onPress={() => removeTag(tag)}>
-                    {" "}
-                    ✕{" "}
-                  </Text>
+                <View style={styles.tagContainer}>
+                  {suggestions.map((item) => (
+                    <TouchableOpacity
+                      key={item}
+                      style={[
+                        styles.tag,
+                        selectedTags.includes(item) && {
+                          backgroundColor: "#4a6cf7",
+                        },
+                      ]}
+                      onPress={() => addTag(item)}
+                    >
+                      <Text style={{ color: "#fff" }}>{item}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              ))}
-            </View>
 
-            <View style={styles.inputContainer}>
-              <Ionicons name="pricetag-outline" size={20} />
-              <TextInput
-                placeholder="Add your own skill"
-                style={styles.input}
-                value={tagInput}
-                onChangeText={setTagInput}
-                onSubmitEditing={() => addTag(tagInput)}
-              />
-            </View>
+                <View style={styles.tagContainer}>
+                  {selectedTags.map((tag) => (
+                    <View key={tag} style={styles.tag}>
+                      <Text style={{ color: "#fff" }}>{tag}</Text>
+                      <Text
+                        style={styles.remove}
+                        onPress={() => removeTag(tag)}
+                      >
+                        ✕
+                      </Text>
+                    </View>
+                  ))}
+                </View>
 
+                <View style={styles.inputContainer}>
+                  <Ionicons name="pricetag-outline" size={20} />
+                  <TextInput
+                    placeholder="Add your own skill"
+                    style={styles.input}
+                    value={tagInput}
+                    onChangeText={setTagInput}
+                    onSubmitEditing={() => addTag(tagInput)}
+                  />
+                </View>
+              </>
+            )}
             {/* Phone */}
             <Input
               icon="call-outline"
@@ -515,5 +545,17 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     textAlign: "center",
     fontSize: 18,
+  },
+  roleBtn: {
+    flex: 1,
+    padding: 10,
+    backgroundColor: "#ddd",
+    marginRight: 5,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+
+  activeRole: {
+    backgroundColor: "#4a6cf7",
   },
 });
