@@ -37,11 +37,6 @@ mongoose
   .then(() => console.log("✅ MongoDB Connected"))
   .catch((err) => console.log(err));
 
-<<<<<<< Updated upstream
 app.listen(8030, "0.0.0.0", () => {
-    console.log("Server running on port 8030");
-=======
-app.listen(8000, "0.0.0.0", () => {
-  console.log("Server running on port 8000");
->>>>>>> Stashed changes
+  console.log("Server running on port 8030");
 });
