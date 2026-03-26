@@ -1,29 +1,57 @@
-import { useRouter } from "expo-router";
-import React from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
-    FlatList,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    KColors as Colors,
-    Radius,
-    Shadow,
-    Spacing,
+  KColors as Colors,
+  Radius,
+  Shadow,
+  Spacing,
 } from "../constants/kaamsetuTheme";
-import { Referral, referrals } from "../constants/mockData";
 
-function ReferralCard({ item }: { item: Referral }) {
+const BASE_URL = "http://172.27.16.252:8030/api";
+
+type ReferralItem = {
+  _id: string;
+  workerName: string;
+  workerPhone: string;
+  skills?: string[];
+  createdAt?: string;
+  jobId?: {
+    _id: string;
+    title?: string;
+    category?: string;
+    company?: string;
+  };
+};
+
+function ReferralCard({ item }: { item: ReferralItem }) {
   const initials = item.workerName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const skillText =
+    item.skills && item.skills.length > 0
+      ? item.skills.join(", ")
+      : "No skills added";
+
+  const referredFor =
+    item.jobId?.title ||
+    item.jobId?.category ||
+    item.jobId?.company ||
+    "Job not available";
 
   return (
     <View style={styles.card}>
@@ -32,16 +60,26 @@ function ReferralCard({ item }: { item: Referral }) {
           <Text style={styles.avatarText}>{initials}</Text>
         </View>
       </View>
+
       <View style={styles.cardBody}>
         <Text style={styles.workerName}>{item.workerName}</Text>
+
         <View style={styles.tagPill}>
-          <Text style={styles.tagText}>{item.workerTag}</Text>
+          <Text style={styles.tagText}>{skillText}</Text>
         </View>
-        <Text style={styles.phoneLine}>📞 {item.phone}</Text>
+
+        <Text style={styles.phoneLine}>📞 {item.workerPhone}</Text>
+
         <Text style={styles.referredFor}>
           <Text style={styles.referredLabel}>Referred for: </Text>
-          {item.referredFor}
+          {referredFor}
         </Text>
+
+        {item.createdAt ? (
+          <Text style={styles.dateText}>
+            Added on {new Date(item.createdAt).toLocaleDateString("en-IN")}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -49,12 +87,54 @@ function ReferralCard({ item }: { item: Referral }) {
 
 export default function ReferralsScreen() {
   const router = useRouter();
+  const [referrals, setReferrals] = useState<ReferralItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchReferrals = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const token = await AsyncStorage.getItem("token");
+
+      if (!token) {
+        setReferrals([]);
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(`${BASE_URL}/referral`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.log("Referral fetch error:", data);
+        setReferrals([]);
+        return;
+      }
+
+      setReferrals(Array.isArray(data.referrals) ? data.referrals : []);
+    } catch (error) {
+      console.log("Referral fetch error:", error);
+      setReferrals([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchReferrals();
+    }, [fetchReferrals])
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>‹</Text>
@@ -63,37 +143,41 @@ export default function ReferralsScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      {/* Info Banner */}
       <View style={styles.infoBanner}>
-        <Text style={styles.infoBannerText}>
-          🔗 Workers you've referred (not registered on KaamSetu)
-        </Text>
+        <Text style={styles.infoBannerText}>🔗 Workers you've referred</Text>
       </View>
 
-      <FlatList
-        data={referrals}
-        keyExtractor={(item) => item.referralID}
-        renderItem={({ item }) => <ReferralCard item={item} />}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🔗</Text>
-            <Text style={styles.emptyText}>No referrals yet.</Text>
-            <Text style={styles.emptySubtext}>
-              Refer a worker from the Live Jobs page to build your trusted
-              network.
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={referrals}
+          keyExtractor={(item) => item._id}
+          renderItem={({ item }) => <ReferralCard item={item} />}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>🔗</Text>
+              <Text style={styles.emptyText}>No referrals yet.</Text>
+              <Text style={styles.emptySubtext}>
+                Refer a worker from the Live Jobs page to build your trusted
+                network.
+              </Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+
   header: {
     backgroundColor: Colors.primary,
     flexDirection: "row",
@@ -102,14 +186,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 14,
   },
+
   backBtn: { width: 36, justifyContent: "center" },
+
   backText: {
     color: Colors.white,
     fontSize: 28,
     fontWeight: "300",
     lineHeight: 32,
   },
-  headerTitle: { color: Colors.white, fontSize: 18, fontWeight: "700" },
+
+  headerTitle: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: "700",
+  },
 
   infoBanner: {
     backgroundColor: Colors.primaryPale,
@@ -118,6 +209,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: Colors.divider,
   },
+
   infoBannerText: {
     fontSize: 13,
     color: Colors.primary,
@@ -125,7 +217,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  list: { padding: Spacing.md },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  list: {
+    padding: Spacing.md,
+    flexGrow: 1,
+  },
 
   card: {
     backgroundColor: Colors.primaryPale,
@@ -137,7 +238,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
     ...Shadow.sm,
   },
-  cardLeft: { justifyContent: "flex-start", paddingTop: 4 },
+
+  cardLeft: {
+    justifyContent: "flex-start",
+    paddingTop: 4,
+  },
+
   avatar: {
     width: 44,
     height: 44,
@@ -146,13 +252,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: { color: Colors.white, fontWeight: "700", fontSize: 16 },
-  cardBody: { flex: 1, gap: 5 },
+
+  avatarText: {
+    color: Colors.white,
+    fontWeight: "700",
+    fontSize: 16,
+  },
+
+  cardBody: {
+    flex: 1,
+    gap: 5,
+  },
+
   workerName: {
     fontSize: 16,
     fontWeight: "800",
     color: Colors.textPrimary,
   },
+
   tagPill: {
     alignSelf: "flex-start",
     backgroundColor: Colors.white,
@@ -162,14 +279,50 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.primary,
   },
-  tagText: { color: Colors.primary, fontSize: 12, fontWeight: "600" },
-  phoneLine: { fontSize: 13, color: Colors.textSecondary },
-  referredFor: { fontSize: 12, color: Colors.textSecondary },
-  referredLabel: { fontWeight: "700", color: Colors.textPrimary },
 
-  empty: { padding: 60, alignItems: "center", gap: 10 },
-  emptyIcon: { fontSize: 40 },
-  emptyText: { fontSize: 16, fontWeight: "700", color: Colors.textPrimary },
+  tagText: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  phoneLine: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+
+  referredFor: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+
+  referredLabel: {
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+
+  dateText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+
+  empty: {
+    padding: 60,
+    alignItems: "center",
+    gap: 10,
+  },
+
+  emptyIcon: {
+    fontSize: 40,
+  },
+
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+
   emptySubtext: {
     fontSize: 13,
     color: Colors.textMuted,
