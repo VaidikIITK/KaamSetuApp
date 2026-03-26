@@ -164,7 +164,7 @@ export default function PostJob() {
   };
 
   return (
-  <LinearGradient colors={["#6c4ef6", "#4a6cf7"]} style={{ flex: 1 }}>
+  <LinearGradient colors={["#3399F3", "#3399F3"]} style={{ flex: 1 }}>
     <StatusBar barStyle="light-content" />
 
     <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -395,7 +395,7 @@ export default function PostJob() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: Spacing.md, backgroundColor: Colors.background },
+  container: { padding: Spacing.md, backgroundColor: "#3399F3" },
   header: {
     backgroundColor: Colors.primary,
     padding: 14,

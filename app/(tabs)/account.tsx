@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Image,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -653,104 +652,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
   },
-  logoutBtn: {
-    backgroundColor: "#D9534F",
-    borderRadius: Radius.full,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  logoutBtnText: {
-    color: Colors.white,
-    fontWeight: "700",
-  },
-  avatar: {
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  avatarText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-
-  starsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-
-  ratingText: {
-    marginLeft: 5,
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-
-  profileTop: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  profileInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-
-  profileNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  editIcon: {
-    marginLeft: 8,
-  },
-
-  editIconText: {
-    fontSize: 16,
-  },
-
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 5,
-  },
-
-  tag: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: 5,
-    marginTop: 5,
-  },
-
-  tagText: {
-    color: "#fff",
-    fontSize: 12,
-  },
-
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  sectionAccent: {
-    width: 4,
-    height: 16,
-    backgroundColor: Colors.primary,
-    marginRight: 6,
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    marginTop: 6,
-  },
-
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  
 });
