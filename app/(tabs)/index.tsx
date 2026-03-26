@@ -1,528 +1,1288 @@
-// import { useRouter } from "expo-router";
-// import React from "react";
-// import {
-//     SafeAreaView,
-//     ScrollView,
-//     StatusBar,
-//     StyleSheet,
-//     Text,
-//     TouchableOpacity,
-//     View,
-// } from "react-native";
-// import {
-//     KColors as Colors,
-//     Radius,
-//     Shadow,
-//     Spacing,
-// } from "../../constants/kaamsetuTheme";
-// import {
-//     completedJobHistory,
-//     currentUser,
-//     myRequests,
-// } from "../../constants/mockData";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 
-// // ─── Reusable Components ────────────────────────────────────────────────────
+} from "react-native";
 
-// function Avatar({ name, size = 72 }: { name: string; size?: number }) {
-//   const initials = name
-//     .split(" ")
-//     .map((n) => n[0])
-//     .join("")
-//     .slice(0, 2)
-//     .toUpperCase();
-//   return (
-//     <View
-//       style={[
-//         styles.avatar,
-//         {
-//           width: size,
-//           height: size,
-//           borderRadius: size / 2,
-//         },
-//       ]}
-//     >
-//       <Text style={[styles.avatarText, { fontSize: size * 0.35 }]}>
-//         {initials}
-//       </Text>
-//     </View>
-//   );
-// }
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+const BASE_URL = "http://172.24.202.171:8000/api"; // ← same IP as login.tsx
 
-// function StarRating({ rating }: { rating: number }) {
-//   return (
-//     <View style={styles.starsRow}>
-//       {[1, 2, 3, 4, 5].map((i) => (
-//         <Text
-//           key={i}
-//           style={{
-//             color: i <= Math.round(rating) ? Colors.starGold : "#DDD",
-//             fontSize: 14,
-//           }}
-//         >
-//           ★
-//         </Text>
-//       ))}
-//       <Text style={styles.ratingText}> ({rating})</Text>
-//     </View>
-//   );
-// }
+const PURPLE = "#2196F3";
+const LIGHT_PURPLE = "#F3E5F5";
+const CARD_BG = "#F1F8E9";
+const TEXT_DARK = "#212121";
 
-// function SectionHeader({ title }: { title: string }) {
-//   return (
-//     <View style={styles.sectionHeaderRow}>
-//       <View style={styles.sectionAccent} />
-//       <Text style={styles.sectionTitle}>{title}</Text>
-//     </View>
-//   );
-// }
+// ─────────────────────────────────────────────────────────────────────────────
+// FILTER OPTIONS  (matches Figure 8 in design doc)
+// ─────────────────────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  "All",
+  "Plumbing",
+  "Cooking",
+  "Cleaning",
+  "Gardening",
+  "Electrician",
+  "Maid",
+];
 
-// function StatusBadge({ status }: { status: string }) {
-//   const map: Record<string, { label: string; bg: string; color: string }> = {
-//     pending: {
-//       label: "Pending",
-//       bg: Colors.warningLight,
-//       color: Colors.warning,
-//     },
-//     in_progress: {
-//       label: "Work in Progress",
-//       bg: Colors.successLight,
-//       color: Colors.success,
-//     },
-//     completed: { label: "Completed", bg: "#E3F2FD", color: "#1565C0" },
-//     cancelled: {
-//       label: "Cancelled",
-//       bg: Colors.errorLight,
-//       color: Colors.error,
-//     },
-//   };
-//   const s = map[status] ?? map["pending"];
-//   return (
-//     <View style={[styles.badge, { backgroundColor: s.bg }]}>
-//       <Text style={[styles.badgeText, { color: s.color }]}>{s.label}</Text>
-//     </View>
-//   );
-// }
+const PAY_RANGES = ["All", "₹100–₹300", "₹300–₹500", "₹500–₹1000", "₹1000+"];
 
-// // ─── Main Component ──────────────────────────────────────────────────────────
+const SCHEDULES = ["Any", "Current", "Within 1 hr", "Within 5 hrs", "Tomorrow"];
 
-// export default function AccountScreen() {
-//   const router = useRouter();
+// ─────────────────────────────────────────────────────────────────────────────
+// CATEGORY → ICON MAP  (Ionicons names)
+// ─────────────────────────────────────────────────────────────────────────────
+const CATEGORY_ICONS: Record<string, string> = {
+  Plumbing: "water-outline",
+  Cooking: "restaurant-outline",
+  Cleaning: "sparkles-outline",
+  Gardening: "leaf-outline",
+  Electrician: "flash-outline",
+  Maid: "home-outline",
+  default: "briefcase-outline",
+};
 
-//   return (
-//     <SafeAreaView style={styles.safe}>
-//       <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+// ─────────────────────────────────────────────────────────────────────────────
+// DUMMY DATA — shown while backend /api/jobs isn't ready yet
+// Replace with real API response once backend route is added
+// ─────────────────────────────────────────────────────────────────────────────
+const DUMMY_JOBS = [
+  {
+    _id: "1",
+    postedBy: { name: "Rahul S." },
+    category: "Cooking",
+    budgetMin: 300,
+    budgetMax: 500,
+    isNegotiable: false,
+    schedule: "Today, Morning",
+    address: "Block C, IIT Kanpur, Kalyanpur",
+    rating: 4.5,
+    description:
+      "Need a reliable cook to prepare lunch daily. Must know North Indian cuisine. Family of four.",
+    status: "open",
+  },
+  {
+    _id: "2",
+    postedBy: { name: "Priya M." },
+    category: "Cooking",
+    budgetMin: 150,
+    budgetMax: 250,
+    isNegotiable: false,
+    schedule: "Tomorrow, Evening",
+    address: "Apartment 102, Main St, Kalyanpur",
+    rating: 4.2,
+    description: "Need someone to cook dinner for 2 people. Vegetarian only.",
+    status: "open",
+  },
+  {
+    _id: "3",
+    postedBy: { name: "Suresh K." },
+    category: "Maid",
+    budgetMin: 0,
+    budgetMax: 0,
+    isNegotiable: true,
+    schedule: "Sat, Afternoon",
+    address: "House 45, Green Avenue, Kalyanpur",
+    rating: 3.8,
+    description: "Need a maid for house cleaning on weekends. 4 hours per day.",
+    status: "open",
+  },
+  {
+    _id: "4",
+    postedBy: { name: "Anita L." },
+    category: "Electrician",
+    budgetMin: 500,
+    budgetMax: 800,
+    isNegotiable: false,
+    schedule: "Sun, Morning",
+    address: "Shop 5, Market Area, IIT Kanpur",
+    rating: 4.7,
+    description:
+      "Electrical wiring issue in a commercial space. Must have 2+ years experience.",
+    status: "open",
+  },
+];
 
-//       {/* Header */}
-//       <View style={styles.header}>
-//         <Text style={styles.headerTitle}>Account</Text>
-//       </View>
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+type Job = {
+  _id: string;
+  postedBy: { name: string; _id?: string };
+  category: string;
+  budgetMin: number;
+  budgetMax: number;
+  isNegotiable: boolean;
+  schedule: string;
+  address: string;
+  rating: number;
+  description: string;
+  status: string;
+};
 
-//       <ScrollView
-//         style={styles.scroll}
-//         contentContainerStyle={styles.scrollContent}
-//         showsVerticalScrollIndicator={false}
-//       >
-//         {/* ── Profile Card ── */}
-//         <View style={styles.profileCard}>
-//           <View style={styles.profileTop}>
-//             <Avatar name={currentUser.name} size={72} />
-//             <View style={styles.profileInfo}>
-//               <View style={styles.profileNameRow}>
-//                 <Text style={styles.profileName}>{currentUser.name}</Text>
-//                 <TouchableOpacity
-//                   onPress={() => router.push("/update-profile")}
-//                   style={styles.editIcon}
-//                 >
-//                   <Text style={styles.editIconText}>✏️</Text>
-//                 </TouchableOpacity>
-//               </View>
-//               <StarRating rating={currentUser.rating} />
-//               {currentUser.workerTags.length > 0 && (
-//                 <View style={styles.tagsRow}>
-//                   {currentUser.workerTags.map((tag) => (
-//                     <View key={tag} style={styles.tag}>
-//                       <Text style={styles.tagText}>{tag}</Text>
-//                     </View>
-//                   ))}
-//                 </View>
-//               )}
-//             </View>
-//           </View>
+type FilterKey = "category" | "pay" | "schedule";
 
-//           <View style={styles.divider} />
-
-//           <View style={styles.contactGrid}>
-//             <View style={styles.contactItem}>
-//               <Text style={styles.contactLabel}>Email</Text>
-//               <Text style={styles.contactValue}>{currentUser.email}</Text>
-//             </View>
-//             <View style={styles.contactItem}>
-//               <Text style={styles.contactLabel}>Phone</Text>
-//               <Text style={styles.contactValue}>{currentUser.phone}</Text>
-//             </View>
-//             <View style={styles.contactItem}>
-//               <Text style={styles.contactLabel}>Address</Text>
-//               <Text style={styles.contactValue}>{currentUser.address}</Text>
-//             </View>
-//           </View>
-
-//           <TouchableOpacity
-//             style={styles.updateBtn}
-//             onPress={() => router.push("/update-profile")}
-//           >
-//             <Text style={styles.updateBtnText}>Update Profile</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* ── My Requests ── */}
-//         <SectionHeader title="My Requests (Current)" />
-//         {myRequests.map((job) => {
-//           const isInProgress = job.status === "in_progress";
-//           return (
-//             <View key={job.jobID} style={styles.card}>
-//               <View style={styles.cardTopRow}>
-//                 <View style={{ flex: 1 }}>
-//                   <Text style={styles.cardTitle}>{job.jobType}</Text>
-//                   <Text style={styles.cardSubtitle}>{job.location}</Text>
-//                 </View>
-//                 <StatusBadge status={job.status} />
-//               </View>
-//               <Text style={styles.cardMeta}>
-//                 ₹{job.budget.min} – ₹{job.budget.max} · {job.schedule.date},{" "}
-//                 {job.schedule.timeRange}
-//               </Text>
-//               <TouchableOpacity
-//                 style={styles.secondaryBtn}
-//                 onPress={() =>
-//                   router.push(
-//                     isInProgress
-//                       ? `/job-status?jobId=${job.jobID}`
-//                       : `/applicants-list?jobId=${job.jobID}`,
-//                   )
-//                 }
-//               >
-//                 <Text style={styles.secondaryBtnText}>
-//                   {isInProgress ? "View Status" : "View Applicants"}
-//                 </Text>
-//               </TouchableOpacity>
-//             </View>
-//           );
-//         })}
-
-//         {/* ── My Applications / Referrals ── */}
-//         <SectionHeader title="My Applications" />
-//         <View style={styles.appLinksRow}>
-//           <TouchableOpacity
-//             style={styles.appLinkCard}
-//             onPress={() => router.push("/referrals")}
-//           >
-//             <Text style={styles.appLinkIcon}>🔗</Text>
-//             <Text style={styles.appLinkLabel}>Referrals</Text>
-//             <Text style={styles.appLinkArrow}>›</Text>
-//           </TouchableOpacity>
-//           <TouchableOpacity
-//             style={styles.appLinkCard}
-//             onPress={() => router.push("/applications")}
-//           >
-//             <Text style={styles.appLinkIcon}>📋</Text>
-//             <Text style={styles.appLinkLabel}>Applications</Text>
-//             <Text style={styles.appLinkArrow}>›</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* ── Completed Job History ── */}
-//         <SectionHeader title="Completed Job History" />
-//         {completedJobHistory.map((job) => (
-//           <View key={job.jobID} style={styles.historyCard}>
-//             <View style={styles.historyLeft}>
-//               <Text style={styles.historyTitle}>{job.jobType}</Text>
-//               <Text style={styles.historyMeta}>Date: {job.date}</Text>
-//               <Text style={styles.historyMeta}>Worker: {job.workerName}</Text>
-//             </View>
-//             <View style={styles.historyRight}>
-//               <Text style={styles.historyPay}>₹{job.agreedPay}</Text>
-//               <View style={[styles.badge, { backgroundColor: "#E3F2FD" }]}>
-//                 <Text style={[styles.badgeText, { color: "#1565C0" }]}>
-//                   {job.status}
-//                 </Text>
-//               </View>
-//             </View>
-//           </View>
-//         ))}
-
-//         <View style={{ height: 32 }} />
-//       </ScrollView>
-//     </SafeAreaView>
-//   );
-// }
-
-// // ─── Styles ───────────────────────────────────────────────────────────────────
-
-// const styles = StyleSheet.create({
-//   safe: {
-//     flex: 1,
-//     backgroundColor: Colors.background,
-//   },
-//   header: {
-//     backgroundColor: Colors.primary,
-//     paddingHorizontal: Spacing.md,
-//     paddingVertical: 14,
-//     alignItems: "center",
-//   },
-//   headerTitle: {
-//     color: Colors.white,
-//     fontSize: 20,
-//     fontWeight: "700",
-//     letterSpacing: 0.5,
-//     textAlign: "center",
-//   },
-//   scroll: { flex: 1 },
-//   scrollContent: {
-//     padding: Spacing.md,
-//     gap: 12,
-//   },
-
-//   // Profile Card
-//   profileCard: {
-//     backgroundColor: Colors.cardBg,
-//     borderRadius: Radius.lg,
-//     padding: Spacing.md,
-//     borderWidth: 1,
-//     borderColor: Colors.cardBorder,
-//     ...Shadow.md,
-//     marginBottom: 4,
-//   },
-//   profileTop: {
-//     flexDirection: "row",
-//     alignItems: "flex-start",
-//     gap: 14,
-//   },
-//   avatar: {
-//     backgroundColor: Colors.primary,
-//     justifyContent: "center",
-//     alignItems: "center",
-//   },
-//   avatarText: {
-//     color: Colors.white,
-//     fontWeight: "700",
-//   },
-//   profileInfo: { flex: 1 },
-//   profileNameRow: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     gap: 8,
-//     marginBottom: 4,
-//   },
-//   profileName: {
-//     fontSize: 20,
-//     fontWeight: "700",
-//     color: Colors.textPrimary,
-//   },
-//   editIcon: {
-//     padding: 2,
-//   },
-//   editIconText: { fontSize: 16 },
-//   starsRow: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     marginBottom: 6,
-//   },
-//   ratingText: {
-//     fontSize: 12,
-//     color: Colors.textSecondary,
-//   },
-//   tagsRow: {
-//     flexDirection: "row",
-//     flexWrap: "wrap",
-//     gap: 6,
-//   },
-//   tag: {
-//     backgroundColor: Colors.primaryPale,
-//     borderRadius: Radius.full,
-//     paddingHorizontal: 10,
-//     paddingVertical: 3,
-//   },
-//   tagText: {
-//     color: Colors.primary,
-//     fontSize: 11,
-//     fontWeight: "600",
-//   },
-//   divider: {
-//     height: 1,
-//     backgroundColor: Colors.divider,
-//     marginVertical: Spacing.md,
-//   },
-//   contactGrid: { gap: 8, marginBottom: Spacing.md },
-//   contactItem: { flexDirection: "row", gap: 8 },
-//   contactLabel: {
-//     fontSize: 13,
-//     fontWeight: "600",
-//     color: Colors.textSecondary,
-//     width: 58,
-//   },
-//   contactValue: {
-//     fontSize: 13,
-//     color: Colors.textPrimary,
-//     flex: 1,
-//   },
-//   updateBtn: {
-//     backgroundColor: Colors.primary,
-//     borderRadius: Radius.full,
-//     paddingVertical: 12,
-//     alignItems: "center",
-//   },
-//   updateBtnText: {
-//     color: Colors.white,
-//     fontWeight: "700",
-//     fontSize: 15,
-//   },
-
-//   // Section Header
-//   sectionHeaderRow: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     gap: 8,
-//     marginTop: 8,
-//     marginBottom: 4,
-//   },
-//   sectionAccent: {
-//     width: 4,
-//     height: 20,
-//     backgroundColor: Colors.primary,
-//     borderRadius: 2,
-//   },
-//   sectionTitle: {
-//     fontSize: 16,
-//     fontWeight: "700",
-//     color: Colors.textPrimary,
-//   },
-
-//   // Job Cards
-//   card: {
-//     backgroundColor: Colors.cardBg,
-//     borderRadius: Radius.md,
-//     padding: Spacing.md,
-//     borderWidth: 1,
-//     borderColor: Colors.cardBorder,
-//     ...Shadow.sm,
-//     gap: 8,
-//   },
-//   cardTopRow: {
-//     flexDirection: "row",
-//     alignItems: "flex-start",
-//     justifyContent: "space-between",
-//     gap: 8,
-//   },
-//   cardTitle: {
-//     fontSize: 15,
-//     fontWeight: "700",
-//     color: Colors.textPrimary,
-//   },
-//   cardSubtitle: {
-//     fontSize: 12,
-//     color: Colors.textMuted,
-//     marginTop: 2,
-//   },
-//   cardMeta: {
-//     fontSize: 12,
-//     color: Colors.textSecondary,
-//   },
-
-//   // Badge
-//   badge: {
-//     borderRadius: Radius.full,
-//     paddingHorizontal: 10,
-//     paddingVertical: 3,
-//     alignSelf: "flex-start",
-//   },
-//   badgeText: {
-//     fontSize: 11,
-//     fontWeight: "700",
-//   },
-
-//   // Secondary Button
-//   secondaryBtn: {
-//     borderWidth: 1.5,
-//     borderColor: Colors.primary,
-//     borderRadius: Radius.full,
-//     paddingVertical: 8,
-//     alignItems: "center",
-//     marginTop: 2,
-//   },
-//   secondaryBtnText: {
-//     color: Colors.primary,
-//     fontWeight: "600",
-//     fontSize: 13,
-//   },
-
-//   // App Links
-//   appLinksRow: {
-//     flexDirection: "row",
-//     gap: 12,
-//   },
-//   appLinkCard: {
-//     flex: 1,
-//     backgroundColor: Colors.cardBg,
-//     borderRadius: Radius.md,
-//     padding: Spacing.md,
-//     borderWidth: 1,
-//     borderColor: Colors.cardBorder,
-//     flexDirection: "row",
-//     alignItems: "center",
-//     gap: 8,
-//     ...Shadow.sm,
-//   },
-//   appLinkIcon: { fontSize: 18 },
-//   appLinkLabel: {
-//     flex: 1,
-//     fontSize: 14,
-//     fontWeight: "600",
-//     color: Colors.textPrimary,
-//   },
-//   appLinkArrow: {
-//     fontSize: 20,
-//     color: Colors.primary,
-//     fontWeight: "700",
-//   },
-
-//   // History Cards
-//   historyCard: {
-//     backgroundColor: Colors.primaryPale,
-//     borderRadius: Radius.md,
-//     padding: Spacing.md,
-//     flexDirection: "row",
-//     justifyContent: "space-between",
-//     alignItems: "flex-start",
-//     borderWidth: 1,
-//     borderColor: Colors.cardBorder,
-//   },
-//   historyLeft: { flex: 1 },
-//   historyTitle: {
-//     fontSize: 14,
-//     fontWeight: "700",
-//     color: Colors.textPrimary,
-//     marginBottom: 4,
-//   },
-//   historyMeta: {
-//     fontSize: 12,
-//     color: Colors.textSecondary,
-//   },
-//   historyRight: { alignItems: "flex-end", gap: 6 },
-//   historyPay: {
-//     fontSize: 16,
-//     fontWeight: "700",
-//     color: Colors.primary,
-//   },
-// });
-
-
-
-import { Text, View } from "react-native";
-
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 export default function LiveJobsScreen() {
+  // ── Core state ──────────────────────────────────────────────────────────────
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [isWorker, setIsWorker] = useState(false); // controls "Apply Now" visibility
+
+  const [appliedJobs, setAppliedJobs] = useState<string[]>([]);
+
+  const [applyModal, setApplyModal] = useState(false);
+  const [applyJobId, setApplyJobId] = useState<string | null>(null);
+
+  const [expectedPay, setExpectedPay] = useState("");
+  const [preferredTime, setPreferredTime] = useState("");
+  const [remarks, setRemarks] = useState("");
+
+  // ── Filter state ────────────────────────────────────────────────────────────
+  const [filters, setFilters] = useState({
+    category: "All",
+    pay: "All",
+    schedule: "Any",
+  });
+  const [activeDropdown, setActiveDropdown] = useState<FilterKey | null>(null);
+
+  // ── View/expand state ───────────────────────────────────────────────────────
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+
+  // ── Refer modal state ───────────────────────────────────────────────────────
+  const [referModal, setReferModal] = useState(false);
+  const [referJobId, setReferJobId] = useState<string | null>(null);
+  const [referName, setReferName] = useState("");
+  const [referPhone, setReferPhone] = useState("");
+  const [referSkills, setReferSkills] = useState("");
+  const [referLoading, setReferLoading] = useState(false);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LOAD USER from AsyncStorage → check if worker
+  // A user is a "worker" if:
+  //   • their role === 'worker'  (from earlier auth setup)
+  //   • OR they have workerTags (from design doc)
+  // ─────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const loadUser = async () => {
+      const t = await AsyncStorage.getItem("token");
+      const u = await AsyncStorage.getItem("user");
+      setToken(t);
+
+      if (u) {
+        const parsed = JSON.parse(u);
+        const workerCheck =
+          parsed.role === "worker" ||
+          (Array.isArray(parsed.workerTags) && parsed.workerTags.length > 0);
+        setIsWorker(workerCheck);
+      }
+    };
+    loadUser();
+  }, []);
+
+  useEffect(() => {
+    const loadAppliedJobs = async () => {
+      const stored = await AsyncStorage.getItem("appliedJobs");
+      if (stored) {
+        setAppliedJobs(JSON.parse(stored));
+      }
+    };
+    loadAppliedJobs();
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FETCH JOBS from backend
+  // Falls back to DUMMY_JOBS if server is unreachable
+  // ─────────────────────────────────────────────────────────────────────────
+  const fetchJobs = useCallback(async () => {
+  try {
+    const t = await AsyncStorage.getItem("token");
+
+    const res = await fetch(`${BASE_URL}/jobs`, {
+      headers: {
+        Authorization: `Bearer ${t}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const data = await res.json();
+
+    console.log("API RESPONSE:", data); // 🔥 DEBUG
+
+    if (res.ok) {
+      // ✅ STRICT handling
+     if (Array.isArray(data)) {
+  const formatted = data.map((job) => ({
+    ...job,
+
+    // ✅ FIX BUDGET
+    budgetMin: job.minBudget,
+    budgetMax: job.maxBudget,
+    isNegotiable: job.noBudget,
+
+    // ✅ FIX SCHEDULE
+    schedule: new Date(job.startDate).toLocaleString("en-IN", {
+  day: "numeric",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+}),
+
+    // ✅ TEMP FIELDS
+    postedBy: { name: "User" },
+    rating: 4,
+  }));
+
+  setJobs(formatted);
+} else {
+  setJobs([]);
+}
+    } else {
+      console.log("Server error:", data);
+      setJobs([]);
+    }
+  } catch (error) {
+    console.log("Fetch error:", error);
+    setJobs([]);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, []);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FILTER LOGIC
+  // ─────────────────────────────────────────────────────────────────────────
+  const filteredJobs = jobs.filter((job) => {
+    // Category
+    if (filters.category !== "All" && job.category !== filters.category)
+      return false;
+
+    // Pay range
+    if (filters.pay !== "All") {
+      const max = job.isNegotiable ? 9999 : job.budgetMax;
+      if (filters.pay === "₹100–₹300" && max > 300) return false;
+      if (filters.pay === "₹300–₹500" && (max < 300 || max > 500)) return false;
+      if (filters.pay === "₹500–₹1000" && (max < 500 || max > 1000))
+        return false;
+      if (filters.pay === "₹1000+" && max < 1000) return false;
+    }
+
+    // Schedule (simple string match)
+    if (
+      filters.schedule !== "Any" &&
+      !job.schedule.toLowerCase().includes(filters.schedule.toLowerCase())
+    )
+      return false;
+
+    return true;
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // APPLY TO JOB
+  // ─────────────────────────────────────────────────────────────────────────
+  // const handleApply = (jobId: string) => {
+  //   Alert.alert("Apply for Job", "Submit your application for this job?", [
+  //     { text: "Cancel", style: "cancel" },
+  //     {
+  //       text: "Apply Now",
+  //       onPress: async () => {
+  //         try {
+  //           const res = await fetch(`${BASE_URL}/jobs/${jobId}/apply`, {
+  //             method: "POST",
+  //             headers: {
+  //               Authorization: `Bearer ${token}`,
+  //               "Content-Type": "application/json",
+  //             },
+  //           });
+  //           const data = await res.json();
+  //           if (res.ok) {
+  //             Alert.alert(
+  //               "✅ Applied!",
+  //               "Application submitted. Check your Account page to track it."
+  //             );
+  //           } else {
+  //             Alert.alert("Error", data.message || "Could not apply");
+  //           }
+  //         } catch {
+  //           Alert.alert(
+  //             "✅ Applied!",
+  //             "Application submitted. (Demo mode — backend not connected)"
+  //           );
+  //         }
+  //       },
+  //     },
+  //   ]);
+  // };
+
+  const handleApply = async (jobId: string) => {
+    // 🔁 IF ALREADY APPLIED → ASK TO CANCEL
+   if (appliedJobs.includes(jobId)) {
+  const updated = appliedJobs.filter((id) => id !== jobId);
+
+  setAppliedJobs(updated);
+
+  await AsyncStorage.setItem(
+    "appliedJobs",
+    JSON.stringify(updated),
+  );
+
+  Alert.alert("Cancelled", "Application removed");
+
+  return;
+}
+
+    // 🟢 NOT APPLIED → ASK TO APPLY
+    Alert.alert("Apply for Job", "Are you sure you want to apply?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Apply",
+        onPress: async () => {
+          try {
+            const res = await fetch(`${BASE_URL}/jobs/${jobId}/apply`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+              const updated = [...appliedJobs, jobId];
+              setAppliedJobs(updated);
+
+              await AsyncStorage.setItem(
+                "appliedJobs",
+                JSON.stringify(updated),
+              );
+
+              Alert.alert("✅ Applied!", "Application submitted");
+            } else {
+              Alert.alert("Error", data.message);
+            }
+          } catch {
+            // fallback
+            const updated = [...appliedJobs, jobId];
+            setAppliedJobs(updated);
+
+            await AsyncStorage.setItem("appliedJobs", JSON.stringify(updated));
+
+            Alert.alert("✅ Applied!", "Saved locally");
+          }
+        },
+      },
+    ]);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SUBMIT REFERRAL
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleReferSubmit = async () => {
+    if (!referName.trim())
+      return Alert.alert("Error", "Please enter the worker's name");
+    if (referPhone.length !== 10)
+      return Alert.alert("Error", "Phone number must be exactly 10 digits");
+    if (!referSkills.trim())
+      return Alert.alert("Error", "Please describe the worker's skills");
+
+    setReferLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/jobs/${referJobId}/refer`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          referredWorkerName: referName,
+          referredWorkerPhone: referPhone,
+          description: referSkills,
+        }),
+      });
+      // Success regardless (backend may not have this route yet)
+      Alert.alert(
+        "✅ Referral Sent!",
+        "Your referral was submitted successfully.",
+      );
+      closeReferModal();
+    } catch {
+      Alert.alert(
+        "✅ Referral Sent!",
+        "Your referral was submitted. (Demo mode)",
+      );
+      closeReferModal();
+    } finally {
+      setReferLoading(false);
+    }
+  };
+
+  const closeReferModal = () => {
+    setReferModal(false);
+    setReferName("");
+    setReferPhone("");
+    setReferSkills("");
+    setReferJobId(null);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER: Filter Pill + Dropdown
+  // ─────────────────────────────────────────────────────────────────────────
+  const renderFilterPill = (
+    label: string,
+    key: FilterKey,
+    options: string[],
+    value: string,
+  ) => {
+    const isOpen = activeDropdown === key;
+    const displayValue = value === "All" || value === "Any" ? "All" : value;
+
+    return (
+      <View style={styles.filterPillWrapper} key={key}>
+        <TouchableOpacity
+          style={[styles.filterPill, isOpen && styles.filterPillActive]}
+          onPress={() => setActiveDropdown(isOpen ? null : key)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.filterPillText} numberOfLines={1}>
+            {label}: {displayValue}
+          </Text>
+          <Ionicons
+            name={isOpen ? "chevron-up" : "chevron-down"}
+            size={11}
+            color={PURPLE}
+            style={{ marginLeft: 3 }}
+          />
+        </TouchableOpacity>
+
+        {/* Dropdown list — renders below the pill */}
+        {isOpen && (
+          <View style={styles.dropdownMenu}>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[
+                  styles.dropdownItem,
+                  value === opt && styles.dropdownItemActive,
+                ]}
+                onPress={() => {
+                  setFilters((prev) => ({ ...prev, [key]: opt }));
+                  setActiveDropdown(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownItemText,
+                    value === opt && styles.dropdownItemTextActive,
+                  ]}
+                >
+                  {opt}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER: Single Job Card  (Figure 7, 8, 9 in design doc)
+  // ─────────────────────────────────────────────────────────────────────────
+  const renderJobCard = ({ item: job }: { item: Job }) => {
+    const isExpanded = expandedJobId === job._id;
+    const iconName =
+      (CATEGORY_ICONS[job.category] as any) || CATEGORY_ICONS.default;
+    const budgetText = job.isNegotiable
+      ? "Negotiable"
+      : `₹${job.budgetMin} – ₹${job.budgetMax}`;
+
+    return (
+      <View style={styles.card}>
+        {/* ── Purple header ─────────────────────────────────────────────── */}
+        <View style={styles.cardHeader}>
+          <Ionicons
+            name={iconName}
+            size={17}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.cardHeaderText} numberOfLines={2}>
+            Posted by: {job.postedBy?.name}
+            {"   "}|{"   "}
+            Category: {job.category}
+          </Text>
+        </View>
+
+        {/* ── Cream body ────────────────────────────────────────────────── */}
+        <View style={styles.cardBody}>
+          {/* EXPANDED STATE: rating + description (Figure 9) */}
+          {isExpanded && (
+            <View style={styles.expandedSection}>
+              {/* Star rating */}
+              <View style={styles.ratingRow}>
+                <Text style={styles.ratingLabel}>User Rating: </Text>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Ionicons
+                    key={star}
+                    name={
+                      job.rating >= star
+                        ? "star"
+                        : job.rating >= star - 0.5
+                          ? "star-half"
+                          : "star-outline"
+                    }
+                    size={15}
+                    color="#FFC107"
+                  />
+                ))}
+                <Text style={styles.ratingScore}> ({job.rating}/5)</Text>
+              </View>
+
+              {/* Description */}
+              <Text style={styles.descText}>{job.description}</Text>
+
+              <View style={styles.divider} />
+            </View>
+          )}
+
+          {/* Budget */}
+          <Text style={styles.infoText}>
+            <Text style={styles.infoLabel}>Budget: </Text>
+            {budgetText}
+            {"     "}
+            <Text style={styles.infoLabel}>Time Schedule: </Text>
+            {job.schedule}
+          </Text>
+
+          {/* Address */}
+          <Text style={styles.infoText}>
+            <Text style={styles.infoLabel}>Address: </Text>
+            {job.address}
+          </Text>
+
+          {/* ── Action buttons (role-based) ───────────────────────────── */}
+          <View style={styles.buttonRow}>
+            {/* Apply Now — workers only */}
+            {true && (
+              // <TouchableOpacity
+              //   style={styles.btnApply}
+              //   onPress={() => handleApply(job._id)}
+              //   activeOpacity={0.85}
+              // >
+              //   <Text style={styles.btnText}>Apply Now</Text>
+              // </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.btnApply,
+                  appliedJobs.includes(job._id) && styles.btnApplied,
+                ]}
+                onPress={async () => {
+  if (appliedJobs.includes(job._id)) {
+    const updated = appliedJobs.filter((id) => id !== job._id);
+
+    setAppliedJobs(updated);
+
+    await AsyncStorage.setItem(
+      "appliedJobs",
+      JSON.stringify(updated),
+    );
+
+    Alert.alert("Cancelled", "Application removed");
+    return;
+  }
+
+  setApplyJobId(job._id);
+  setApplyModal(true);
+}}
+              >
+                <Text style={styles.btnText}>
+                  {appliedJobs.includes(job._id) ? "Applied" : "Apply Now"}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Refer — everyone */}
+            <TouchableOpacity
+              style={styles.btnRefer}
+              onPress={() => {
+                setReferJobId(job._id);
+                setReferModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.btnText}>Refer</Text>
+            </TouchableOpacity>
+
+            {/* View / Close — everyone */}
+            <TouchableOpacity
+              style={[styles.btnView, isExpanded && styles.btnViewActive]}
+              onPress={() => setExpandedJobId(isExpanded ? null : job._id)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.btnText}>
+                {isExpanded ? "Close" : "View"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // LOADING STATE
+  // ─────────────────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={PURPLE} />
+        <Text style={styles.loadingText}>Loading live jobs…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MAIN RENDER
+  // ─────────────────────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <Text>Live Jobs Screen</Text>
-    </View>
+    <SafeAreaView style={styles.container}>
+      {/* ── Top header ────────────────────────────────────────────────── */}
+      {/* <View style={styles.header}>
+        <Text style={styles.headerTitle}>Live Jobs</Text>
+        <TouchableOpacity
+          onPress={() => {
+            setLoading(true);
+            fetchJobs();
+          }}
+        >
+          <Ionicons name="refresh-outline" size={22} color={PURPLE} />
+        </TouchableOpacity>
+      </View> */}
+
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Live Jobs</Text>
+
+        <TouchableOpacity
+          style={styles.refreshBtn}
+          onPress={() => {
+            setLoading(true);
+            fetchJobs();
+          }}
+        >
+          <Ionicons name="refresh-outline" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Filter bar (3 pills) ───────────────────────────────────────── */}
+      <View style={styles.filterBar}>
+        {renderFilterPill("Category", "category", CATEGORIES, filters.category)}
+        {renderFilterPill("Pay", "pay", PAY_RANGES, filters.pay)}
+        {renderFilterPill("Schedule", "schedule", SCHEDULES, filters.schedule)}
+      </View>
+
+      {/* ── Job list ──────────────────────────────────────────────────── */}
+      <FlatList
+        data={filteredJobs}
+        keyExtractor={(item) => item._id}
+        renderItem={renderJobCard}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        // Pull-to-refresh
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchJobs();
+            }}
+            colors={[PURPLE]}
+            tintColor={PURPLE}
+          />
+        }
+        // Empty state
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="search-outline" size={52} color="#BDBDBD" />
+            <Text style={styles.emptyText}>No jobs match your filters</Text>
+            <TouchableOpacity
+              onPress={() =>
+                setFilters({ category: "All", pay: "All", schedule: "Any" })
+              }
+            >
+              <Text style={styles.clearFiltersText}>Clear Filters</Text>
+            </TouchableOpacity>
+          </View>
+        }
+      />
+
+      {/* ── Refer a Worker — bottom sheet modal (Figure 10) ───────────── */}
+      <Modal
+        visible={referModal}
+        animationType="slide"
+        transparent
+        onRequestClose={closeReferModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            {/* Modal header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderText}>Refer a Worker</Text>
+              <TouchableOpacity onPress={closeReferModal}>
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal body */}
+            <ScrollView
+              style={styles.modalBody}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.inputLabel}>Worker's Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter name"
+                value={referName}
+                onChangeText={setReferName}
+                placeholderTextColor="#BDBDBD"
+              />
+
+              <Text style={styles.inputLabel}>Worker's Phone Number</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter 10-digit number"
+                keyboardType="numeric"
+                maxLength={10}
+                value={referPhone}
+                onChangeText={setReferPhone}
+                placeholderTextColor="#BDBDBD"
+              />
+
+              <Text style={styles.inputLabel}>Description / Skills</Text>
+              <TextInput
+                style={[styles.modalInput, styles.textArea]}
+                placeholder="Describe worker's skills and experience"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                value={referSkills}
+                onChangeText={setReferSkills}
+                placeholderTextColor="#BDBDBD"
+              />
+
+              <TouchableOpacity
+                style={[styles.submitBtn, referLoading && { opacity: 0.7 }]}
+                onPress={handleReferSubmit}
+                disabled={referLoading}
+                activeOpacity={0.85}
+              >
+                {referLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Submit Referral</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Extra bottom padding so content isn't hidden by keyboard */}
+              <View style={{ height: 30 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={applyModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setApplyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderText}>Apply for Job</Text>
+
+              <TouchableOpacity onPress={() => setApplyModal(false)}>
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Expected Pay */}
+              <Text style={styles.inputLabel}>Expected Pay</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter expected pay"
+                value={expectedPay}
+                onChangeText={setExpectedPay}
+                keyboardType="numeric"
+              />
+
+              {/* Preferred Time */}
+              <Text style={styles.inputLabel}>Preferred Time</Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter your preferred schedule"
+                value={preferredTime}
+                maxLength={50}
+                onChangeText={setPreferredTime}
+              />
+
+              {/* Remarks */}
+              <Text style={styles.inputLabel}>Other Remarks (optional)</Text>
+
+              <TextInput
+                style={[styles.modalInput, styles.textArea]}
+                placeholder=""
+                value={remarks}
+                maxLength={100}
+                multiline
+                onChangeText={setRemarks}
+              />
+
+              {/* Submit */}
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={async () => {
+                  if (!applyJobId) return;
+
+                  // ✅ validation
+                  if (!expectedPay.trim()) {
+                    Alert.alert("Error", "Expected pay is required");
+                    return;
+                  }
+
+                  if (!preferredTime.trim()) {
+                    Alert.alert("Error", "Preferred time is required");
+                    return;
+                  }
+
+                  // ✅ already applied → cancel
+                  if (appliedJobs.includes(applyJobId)) {
+                    const updated = appliedJobs.filter(
+                      (id) => id !== applyJobId,
+                    );
+
+                    setAppliedJobs(updated);
+
+                    await AsyncStorage.setItem(
+                      "appliedJobs",
+                      JSON.stringify(updated),
+                    );
+
+                    setApplyModal(false);
+
+                    Alert.alert("Cancelled", "Application removed");
+
+                    return;
+                  }
+
+                  // ✅ apply
+                  try {
+  const res = await fetch(`${BASE_URL}/applications/apply`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      jobId: applyJobId,
+      expectedPay: Number(expectedPay),
+      preferredTime,
+      remarks,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (res.ok) {
+    const updated = [...appliedJobs, applyJobId!];
+    setAppliedJobs(updated);
+
+    await AsyncStorage.setItem(
+      "appliedJobs",
+      JSON.stringify(updated),
+    );
+
+    setApplyModal(false);
+
+    Alert.alert("✅ Applied", "Application submitted successfully");
+  } else {
+    Alert.alert("Error", data.message || "Failed to apply");
+  }
+} catch (err) {
+  console.log(err);
+  Alert.alert("Error", "Something went wrong");
+}
+                }}
+              >
+                <Text style={styles.submitBtnText}>Submit Application</Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  // ── Layout ─────────────────────────────────────────────────────────────────
+  container: { flex: 1, backgroundColor: "#f5f3ff" },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f3ff",
+  },
+  loadingText: { color: "#2196F3", marginTop: 12, fontSize: 15 },
+  listContent: { padding: 12, paddingBottom: 30 },
+
+  //── Header ─────────────────────────────────────────────────────────────────
+  // header: {
+  //   flexDirection: "row",
+  //   justifyContent: "space-between",
+  //   alignItems: "center",
+  //   paddingHorizontal: 16,
+  //   paddingTop: 10,
+  //   paddingBottom: 8,
+  //   backgroundColor: "#f5f3ff",
+  // },
+  // headerTitle: {
+  //   fontSize: 22,
+  //   fontWeight: "bold",
+  //   color: "#2196F3",
+  // },
+
+  header: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+
+  refreshBtn: {
+    position: "absolute",
+    right: 16,
+    top: 14,
+  },
+
+  // ── Filter bar ─────────────────────────────────────────────────────────────
+  // filterBar: {
+  //   flexDirection: "row",
+  //   paddingHorizontal: 12,
+  //   paddingBottom: 10,
+  //   backgroundColor: "#f5f3ff",
+  //   gap: 8,
+  //   zIndex: 100,
+  // },
+
+  filterBar: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    backgroundColor: "#f5f3ff",
+    gap: 8,
+    zIndex: 100,
+
+    marginTop: 6, // ✅ add this
+  },
+  filterPillWrapper: {
+    flex: 1,
+    zIndex: 100,
+    position: "relative",
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#2196F3",
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: "#ffffff",
+  },
+  filterPillActive: {
+    backgroundColor: "#ede9ff",
+  },
+  filterPillText: {
+    fontSize: 11,
+    color: "#2196F3",
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+
+  // ── Dropdown ───────────────────────────────────────────────────────────────
+  dropdownMenu: {
+    position: "absolute",
+    top: 36,
+    left: 0,
+    right: 0,
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E1BEE7",
+    elevation: 10,
+    zIndex: 999,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  dropdownItemActive: {
+    backgroundColor: "#ede9ff",
+  },
+  dropdownItemText: {
+    fontSize: 13,
+    color: "#1a1a1a",
+  },
+  dropdownItemTextActive: {
+    color: "#2196F3",
+    fontWeight: "700",
+  },
+
+  // ── Job card ───────────────────────────────────────────────────────────────
+  card: {
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: "hidden",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.09,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardHeader: {
+    backgroundColor: "#2196F3",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  cardHeaderText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+    lineHeight: 19,
+  },
+  cardBody: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  infoText: {
+    fontSize: 13,
+    color: "#1a1a1a",
+    marginBottom: 5,
+    lineHeight: 19,
+  },
+  infoLabel: {
+    fontWeight: "700",
+  },
+
+  // ── Expanded view section ──────────────────────────────────────────────────
+  expandedSection: {
+    marginBottom: 10,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  ratingLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    marginRight: 4,
+  },
+  ratingScore: {
+    fontSize: 13,
+    color: "#1a1a1a",
+  },
+  descText: {
+    fontSize: 13,
+    color: "#666666",
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#D0D0D0",
+    marginBottom: 10,
+  },
+
+  // ── Action buttons ─────────────────────────────────────────────────────────
+  buttonRow: {
+    flexDirection: "row",
+    marginTop: 10,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  btnApply: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    elevation: 2,
+  },
+  btnRefer: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    opacity: 0.88,
+  },
+  btnView: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    opacity: 0.88,
+  },
+  btnViewActive: {
+    backgroundColor: "#2196F3",
+    opacity: 1,
+  },
+  btnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  btnApplied: {
+    backgroundColor: "#4CAF50",
+  },
+
+  // ── Empty state ────────────────────────────────────────────────────────────
+  emptyContainer: {
+    alignItems: "center",
+    marginTop: 70,
+    paddingHorizontal: 24,
+  },
+  emptyText: {
+    color: "#9E9E9E",
+    fontSize: 15,
+    marginTop: 14,
+    textAlign: "center",
+  },
+  clearFiltersText: {
+    color: "#2196F3",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 10,
+    textDecorationLine: "underline",
+  },
+
+  // ── Refer modal ────────────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#FAFAFA",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    maxHeight: "82%",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    backgroundColor: "#2196F3",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+  modalHeaderText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  modalInput: {
+    backgroundColor: "#FFFDE7",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#2196F3",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: "#1a1a1a",
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: "top",
+  },
+  submitBtn: {
+    backgroundColor: "#2196F3",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 22,
+    elevation: 3,
+  },
+  submitBtnText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+});

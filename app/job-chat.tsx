@@ -1,96 +1,153 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    KColors as Colors,
-    Radius,
-    Shadow,
-    Spacing,
+  KColors as Colors,
+  Radius,
+  Shadow,
+  Spacing,
 } from "../constants/kaamsetuTheme";
-import {
-    ChatMessage,
-    chatMessages,
-    workerProfiles,
-} from "../constants/mockData";
+
+type ChatMessage = {
+  _id: string;
+  senderId: string;
+  content: string;
+  readStatus: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
 
 export default function JobChatScreen() {
-  // Using query params instead of dynamic segment to avoid filename clash
-  const { workerId, jobId } = useLocalSearchParams<{
-    workerId: string;
-    jobId: string;
-  }>();
   const router = useRouter();
-  const worker = workerProfiles[workerId ?? ""];
-  const flatListRef = useRef<FlatList>(null);
+  const { chatId } = useLocalSearchParams<{ chatId: string }>();
 
-  const [messages, setMessages] = useState<ChatMessage[]>(chatMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [myUserId, setMyUserId] = useState("");
 
-  const workerName = worker?.name ?? "Worker";
-  const initials = workerName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const fetchMessages = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const userString = await AsyncStorage.getItem("user");
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    const newMsg: ChatMessage = {
-      messageID: `m${Date.now()}`,
-      senderID: "u001",
-      content: input.trim(),
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      isMe: true,
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    setInput("");
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      if (userString) {
+        const parsedUser = JSON.parse(userString);
+        setMyUserId(parsedUser._id);
+      }
+
+      if (!token || !chatId) {
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch(
+        `http://172.24.202.171:8000/api/chat/${chatId}/messages`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert("Error", data.message || "Failed to fetch messages");
+        setLoading(false);
+        return;
+      }
+
+      setMessages(data.chat?.messages || []);
+    } catch (error) {
+      console.log("Fetch messages error:", error);
+      Alert.alert("Error", "Failed to load messages");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const renderMessage = ({ item }: { item: ChatMessage }) => (
-    <View
-      style={[
-        styles.msgWrapper,
-        item.isMe ? styles.msgWrapperRight : styles.msgWrapperLeft,
-      ]}
-    >
-      {!item.isMe && (
-        <View style={styles.msgAvatar}>
-          <Text style={styles.msgAvatarText}>{initials}</Text>
-        </View>
-      )}
+  useEffect(() => {
+    fetchMessages();
+  }, [chatId]);
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+
+      if (!token || !chatId) {
+        Alert.alert("Error", "Missing token or chatId");
+        return;
+      }
+
+      const res = await fetch(
+        `http://172.24.202.171:8000/api/chat/${chatId}/send`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            content: input.trim(),
+          }),
+        },
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert("Error", data.message || "Failed to send message");
+        return;
+      }
+
+      setMessages(data.messages || []);
+      setInput("");
+    } catch (error) {
+      console.log("Send message error:", error);
+      Alert.alert("Error", "Failed to send message");
+    }
+  };
+
+  const renderItem = ({ item }: { item: ChatMessage }) => {
+    const isMine = item.senderId === myUserId;
+
+    return (
       <View
-        style={[styles.bubble, item.isMe ? styles.bubbleMe : styles.bubbleThem]}
+        style={[
+          styles.messageRow,
+          { justifyContent: isMine ? "flex-end" : "flex-start" },
+        ]}
       >
-        <Text style={[styles.bubbleText, item.isMe && styles.bubbleTextMe]}>
-          {item.content}
-        </Text>
-        <Text
+        <View
           style={[
-            styles.bubbleTime,
-            item.isMe && { color: "rgba(255,255,255,0.7)" },
+            styles.messageBubble,
+            isMine ? styles.myMessage : styles.otherMessage,
           ]}
         >
-          {item.timestamp}
-        </Text>
+          <Text style={isMine ? styles.myMessageText : styles.otherMessageText}>
+            {item.content}
+          </Text>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -100,60 +157,37 @@ export default function JobChatScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>‹</Text>
         </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>{initials}</Text>
-          </View>
-          <View>
-            <Text style={styles.headerName}>{workerName}</Text>
-            <Text style={styles.headerSub}>{worker?.workTag ?? ""}</Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={styles.profileBtn}
-          onPress={() => router.push(`/worker-profile?workerId=${workerId}`)}
-        >
-          <Text style={styles.profileBtnText}>Profile</Text>
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Job Chat</Text>
+        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.chatNotice}>
-          <Text style={styles.chatNoticeText}>
-            💬 Temporary chat — messages cleared once job is accepted.
-          </Text>
-        </View>
-
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.messageID}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator={false}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        />
+        {loading ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={messages}
+            keyExtractor={(item) => item._id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+          />
+        )}
 
         <View style={styles.inputBar}>
           <TextInput
-            style={styles.textInput}
+            style={styles.input}
             value={input}
             onChangeText={setInput}
             placeholder="Type a message..."
             placeholderTextColor={Colors.textMuted}
-            multiline
-            returnKeyType="send"
-            onSubmitEditing={sendMessage}
           />
-          <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            onPress={sendMessage}
-            disabled={!input.trim()}
-          >
-            <Text style={styles.sendBtnText}>›</Text>
+          <TouchableOpacity style={styles.sendBtn} onPress={sendMessage}>
+            <Text style={styles.sendBtnText}>Send</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -163,127 +197,78 @@ export default function JobChatScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: {
     backgroundColor: Colors.primary,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.md,
-    paddingVertical: 12,
-    gap: 10,
+    paddingVertical: 14,
   },
-  backBtn: { width: 30, justifyContent: "center" },
+  backBtn: { width: 36, justifyContent: "center" },
   backText: {
     color: Colors.white,
     fontSize: 28,
     fontWeight: "300",
     lineHeight: 32,
   },
-  headerInfo: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  headerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerAvatarText: { color: Colors.white, fontWeight: "700", fontSize: 14 },
-  headerName: { color: Colors.white, fontWeight: "700", fontSize: 16 },
-  headerSub: { color: "rgba(255,255,255,0.75)", fontSize: 12 },
-  profileBtn: {
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.6)",
-    borderRadius: Radius.full,
+  headerTitle: { color: Colors.white, fontSize: 18, fontWeight: "700" },
+  loaderWrap: { flex: 1, justifyContent: "center", alignItems: "center" },
+  listContent: { padding: Spacing.md, gap: 10 },
+  messageRow: { width: "100%" },
+  messageBubble: {
+    maxWidth: "75%",
     paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  profileBtnText: { color: Colors.white, fontSize: 12, fontWeight: "600" },
-  chatNotice: {
-    backgroundColor: Colors.primaryPale,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderColor: Colors.divider,
-  },
-  chatNoticeText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    textAlign: "center",
-    fontStyle: "italic",
-  },
-  messagesList: { padding: Spacing.md, paddingBottom: 16 },
-  msgWrapper: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    marginBottom: 8,
-  },
-  msgWrapperRight: { justifyContent: "flex-end" },
-  msgWrapperLeft: { justifyContent: "flex-start" },
-  msgAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: "center",
-    alignItems: "center",
-    flexShrink: 0,
-  },
-  msgAvatarText: { color: Colors.white, fontWeight: "700", fontSize: 11 },
-  bubble: {
-    maxWidth: "72%",
+    paddingVertical: 10,
     borderRadius: Radius.md,
-    padding: 10,
-    paddingHorizontal: 14,
-    gap: 4,
+    ...Shadow.sm,
   },
-  bubbleMe: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
-  bubbleThem: {
-    backgroundColor: Colors.white,
+  myMessage: {
+    backgroundColor: Colors.primary,
+    borderBottomRightRadius: 4,
+  },
+  otherMessage: {
+    backgroundColor: Colors.cardBg,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    ...Shadow.sm,
   },
-  bubbleText: { fontSize: 14, color: Colors.textPrimary, lineHeight: 20 },
-  bubbleTextMe: { color: Colors.white },
-  bubbleTime: { fontSize: 10, color: Colors.textMuted, alignSelf: "flex-end" },
+  myMessageText: {
+    color: Colors.white,
+    fontSize: 15,
+  },
+  otherMessageText: {
+    color: Colors.textPrimary,
+    fontSize: 15,
+  },
   inputBar: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
+    gap: 8,
     padding: Spacing.md,
-    gap: 10,
-    backgroundColor: Colors.white,
     borderTopWidth: 1,
-    borderColor: Colors.divider,
+    borderTopColor: Colors.cardBorder,
+    backgroundColor: Colors.white,
   },
-  textInput: {
+  input: {
     flex: 1,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.cardBorder,
-    borderRadius: 22,
-    paddingHorizontal: 16,
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
     color: Colors.textPrimary,
-    maxHeight: 100,
-    backgroundColor: Colors.offWhite,
+    backgroundColor: Colors.background,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Radius.full,
   },
-  sendBtnDisabled: { backgroundColor: Colors.textMuted },
   sendBtnText: {
     color: Colors.white,
-    fontSize: 24,
     fontWeight: "700",
-    lineHeight: 28,
   },
 });

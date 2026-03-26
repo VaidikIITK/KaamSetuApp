@@ -9,6 +9,11 @@ const userSchema = new mongoose.Schema(
     address: String,
     skills: [String],
     profileImage: { type: String, default: "profile.jpg" },
+    role: {
+      type: String,
+      enum: ["user", "worker"],
+      default: "user",
+    },
   },
   { timestamps: true },
 );

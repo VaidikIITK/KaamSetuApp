@@ -1,0 +1,8 @@
+[33m01ba53f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature_new[m[33m)[m HEAD@{0}: commit: changes
+[33ma458145[m HEAD@{1}: commit: updatprofile
+[33mc27e72e[m[33m ([m[1;31mupstream/feature/auth-profile-integration[m[33m, [m[1;32mfeature/auth-profile-integration[m[33m)[m HEAD@{2}: checkout: moving from feature/auth-profile-integration to feature_new
+[33mc27e72e[m[33m ([m[1;31mupstream/feature/auth-profile-integration[m[33m, [m[1;32mfeature/auth-profile-integration[m[33m)[m HEAD@{3}: pull: Fast-forward
+[33m9e26555[m[33m ([m[1;32mmy-feature_piyush[m[33m)[m HEAD@{4}: checkout: moving from my-feature_piyush to feature/auth-profile-integration
+[33m9e26555[m[33m ([m[1;32mmy-feature_piyush[m[33m)[m HEAD@{5}: checkout: moving from feature/auth-profile-integration to my-feature_piyush
+[33m9e26555[m[33m ([m[1;32mmy-feature_piyush[m[33m)[m HEAD@{6}: checkout: moving from main to feature/auth-profile-integration
+[33m541ff9b[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m HEAD@{7}: clone: from https://github.com/piyush14v/KaamSetuApp.git

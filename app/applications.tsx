@@ -1,5 +1,8 @@
 import { useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect } from "react";
 import {
     Alert,
     SafeAreaView,
@@ -17,8 +20,6 @@ import {
     Shadow,
     Spacing,
 } from "../constants/kaamsetuTheme";
-
-import { myApplications } from "../constants/mockData";
 
 type TabType = "accepted" | "requested";
 
@@ -58,9 +59,41 @@ export default function ApplicationsScreen() {
   const [tab, setTab] = useState<TabType>("accepted");
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
+  const [applications, setApplications] = useState<any[]>([]);
+  const BASE_URL = "http://172.24.202.171:8000/api";
+  const { jobId } = useLocalSearchParams<{ jobId: string }>();
 
-  const acceptedApps = myApplications.filter((a) => a.status === "accepted");
-  const requestedApps = myApplications.filter((a) => a.status !== "accepted");
+  const fetchApplications = async () => {
+  try {
+    const token = await AsyncStorage.getItem("token");
+
+    // If jobId is passed, fetch applicants for that specific job
+    const url = jobId
+      ? `${BASE_URL}/applications/job/${jobId}`
+      : `${BASE_URL}/applications/received`;
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const data = await res.json();
+    setApplications(data.applications || []);
+  } catch (err) {
+    console.log("FETCH ERROR:", err);
+  }
+};
+
+useEffect(() => {
+  fetchApplications();
+}, [jobId]);
+
+  const acceptedApps = (applications || []).filter(
+  (a) => a.status === "accepted"
+);
+
+const requestedApps = (applications || []).filter(
+  (a) => a.status === "pending"
+);
 
   const handleEndWork = () => {
     Alert.alert("End Work", "Confirm that you have completed the job?", [
@@ -138,10 +171,13 @@ export default function ApplicationsScreen() {
 
                 {/* Job Summary */}
                 <View style={styles.section}>
-                  <Text style={styles.jobTitle}>{app.jobTitle}</Text>
-                  <Text style={styles.jobMeta}>
-                    Status: In Progress · {app.dateApplied}
-                  </Text>
+                  <Text style={styles.jobTitle}>
+  {app.jobId?.category}
+</Text>
+
+<Text style={styles.jobMeta}>
+  Status: Accepted · {new Date(app.createdAt).toLocaleDateString()}
+</Text>
                 </View>
 
                 {/* Job Details */}
@@ -152,7 +188,7 @@ export default function ApplicationsScreen() {
                     ["Description", app.description],
                     ["Location", app.jobLocation],
                     ["Date Posted", app.datePosted],
-                    ["Offered Pay", `₹${app.offeredPay}`],
+                    ["Expected Pay", `₹${app.expectedPay}`],
                   ].map(([k, v]) => (
                     <View key={k} style={styles.detailRow}>
                       <Text style={styles.detailKey}>{k}:</Text>
@@ -200,37 +236,50 @@ export default function ApplicationsScreen() {
           </View>
         ) : (
           requestedApps.map((app) => (
-            <View
-              key={app.applicationID}
-              style={[
-                styles.requestedCard,
-                app.status === "rejected" && styles.requestedCardRejected,
-              ]}
-            >
-              <View style={styles.requestedTopRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.jobTitle}>{app.jobTitle}</Text>
-                  <Text
-                    style={[
-                      styles.statusText,
-                      {
-                        color:
-                          app.status === "rejected"
-                            ? Colors.error
-                            : Colors.warning,
-                      },
-                    ]}
-                  >
-                    Status:{" "}
-                    {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
-                  </Text>
-                </View>
-                <StatusIcon status={app.status} />
-              </View>
-              <Text style={styles.jobMeta}>Applied: {app.dateApplied}</Text>
-              <Text style={styles.jobMeta}>Offered Pay: ₹{app.offeredPay}</Text>
-            </View>
-          ))
+  <View
+  key={app?._id || Math.random()}
+    style={[
+      styles.requestedCard,
+      app.status === "rejected" && styles.requestedCardRejected,
+    ]}
+  >
+    <View style={styles.requestedTopRow}>
+      <View style={{ flex: 1 }}>
+
+        {/* ✅ REPLACED */}
+        <Text style={styles.jobTitle}>
+          {app.jobId?.category}
+        </Text>
+
+        <Text
+          style={[
+            styles.statusText,
+            {
+              color:
+                app.status === "rejected"
+                  ? Colors.error
+                  : Colors.warning,
+            },
+          ]}
+        >
+          Status:{" "}
+          {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+        </Text>
+      </View>
+
+      <StatusIcon status={app.status} />
+    </View>
+
+    {/* ✅ REPLACED */}
+    <Text style={styles.jobMeta}>
+      Applied: {new Date(app.createdAt).toLocaleDateString()}
+    </Text>
+
+    <Text style={styles.jobMeta}>
+      Expected Pay: ₹{app.expectedPay}
+    </Text>
+  </View>
+))
         )}
 
         <View style={{ height: 40 }} />

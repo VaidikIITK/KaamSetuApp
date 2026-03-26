@@ -1,20 +1,21 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    KColors as Colors,
-    Radius,
-    Shadow,
-    Spacing,
+  KColors as Colors,
+  Radius,
+  Shadow,
+  Spacing,
 } from "../constants/kaamsetuTheme";
 import { workerProfiles } from "../constants/mockData";
 
@@ -25,6 +26,7 @@ function Avatar({ name, size = 80 }: { name: string; size?: number }) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
   return (
     <View
       style={[
@@ -40,13 +42,13 @@ function Avatar({ name, size = 80 }: { name: string; size?: number }) {
 }
 
 export default function WorkerProfileScreen() {
-  // Using query params instead of dynamic segment to avoid filename clash
-  const { workerId, jobId } = useLocalSearchParams<{
+  const { workerId, jobId, applicationId } = useLocalSearchParams<{
     workerId: string;
     jobId: string;
+    applicationId: string;
   }>();
-  const router = useRouter();
 
+  const router = useRouter();
   const worker = workerProfiles[workerId ?? ""];
 
   if (!worker) {
@@ -71,17 +73,60 @@ export default function WorkerProfileScreen() {
             Alert.alert(
               "Success",
               "Applicant accepted! The job is now in progress.",
-              [
-                {
-                  text: "OK",
-                  onPress: () => router.replace("/(tabs)"),
-                },
-              ],
+              [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
             );
           },
         },
       ],
     );
+  };
+
+  const handleChat = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+
+      if (!token) {
+        Alert.alert("Error", "Please login again.");
+        return;
+      }
+
+      if (!jobId || !workerId || !applicationId) {
+        Alert.alert("Error", "Missing jobId, workerId, or applicationId");
+        return;
+      }
+
+      const res = await fetch("http://172.24.202.171:8000/api/chat/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          jobId,
+          workerId,
+          applicationId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert("Error", data.message || "Failed to create chat");
+        return;
+      }
+
+      const chatId = data.chat?._id;
+
+      if (!chatId) {
+        Alert.alert("Error", "Chat created but chatId missing");
+        return;
+      }
+
+      router.push(`/job-chat?chatId=${chatId}`);
+    } catch (error) {
+      console.log("Chat create error:", error);
+      Alert.alert("Error", "Failed to open chat");
+    }
   };
 
   return (
@@ -100,11 +145,11 @@ export default function WorkerProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Card */}
         <View style={styles.heroCard}>
           <Avatar name={worker.name} size={90} />
           <Text style={styles.heroName}>{worker.name}</Text>
           <Text style={styles.heroTag}>{worker.workTag}</Text>
+
           <View style={styles.heroRatingRow}>
             {[1, 2, 3, 4, 5].map((i) => (
               <Text
@@ -123,6 +168,7 @@ export default function WorkerProfileScreen() {
               {worker.rating} ({worker.ratingCount}+ Ratings)
             </Text>
           </View>
+
           <View style={styles.heroPills}>
             <View style={styles.heroPill}>
               <Text style={styles.heroPillText}>📍 {worker.location}</Text>
@@ -135,16 +181,10 @@ export default function WorkerProfileScreen() {
           </View>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.chatBtn}
-              onPress={() =>
-                router.push(
-                  `/job-chat?workerId=${worker.workerID}&jobId=${jobId ?? ""}`,
-                )
-              }
-            >
+            <TouchableOpacity style={styles.chatBtn} onPress={handleChat}>
               <Text style={styles.chatBtnText}>💬 Chat</Text>
             </TouchableOpacity>
+
             {jobId ? (
               <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept}>
                 <Text style={styles.acceptBtnText}>✓ Accept</Text>
@@ -153,7 +193,6 @@ export default function WorkerProfileScreen() {
           </View>
         </View>
 
-        {/* Work History */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionAccent} />
           <Text style={styles.sectionTitle}>Previous Work History</Text>

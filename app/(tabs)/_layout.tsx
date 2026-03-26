@@ -79,9 +79,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
-    paddingHorizontal: 0, // 🔥 reduced
-    paddingVertical: 0.5,
-    borderRadius: 1,// 🔥 VERY IMPORTANT
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    minWidth: 70,
   },
   tabIconFocused: {
     backgroundColor: Colors.primaryPale,
@@ -97,3 +98,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
