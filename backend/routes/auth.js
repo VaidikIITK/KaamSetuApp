@@ -22,63 +22,50 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 const router = express.Router();
 
 let otpStore = {};
 
 // ================= SEND OTP =================
-// let otpStore = {}; // temp store
 router.post("/send-otp", async (req, res) => {
-  try {
-    const { email } = req.body;
+  const { email } = req.body;
 
-    if (!email || !email.includes("@")) {
-      return res.status(400).json({ message: "Invalid email" });
-    }
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  otpStore[email] = otp;
 
-    // 🔐 generate OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  console.log("OTP:", otp);
 
-    // 🧠 store OTP in backend (IMPORTANT for verification)
-    otpStore[email] = otp;
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
 
-    console.log("OTP:", otp); // debug
+  await transporter.sendMail({
+    from: process.env.EMAIL,
+    to: email,
+    subject: "Your OTP",
+    text: `Your OTP is ${otp}`,
+  });
 
-    // 🚀 SEND TO YOUR PC (relay server)
-    const relayRes = await fetch("http://172.23.21.137:3000/send-otp", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // optional:
-        // "Authorization": "Bearer mysecretkey"
-      },
-      body: JSON.stringify({ email, otp }),
-    });
-
-    if (!relayRes.ok) {
-      throw new Error("Relay failed");
-    }
-
-    res.json({ message: "OTP sent" });
-  } catch (err) {
-    console.error("OTP error:", err);
-    res.status(500).json({ message: "Failed to send OTP" });
-  }
+  res.json({ message: "OTP sent" });
 });
 
 // ================= REGISTER =================
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, phone, password, address, skills, otp } = req.body;
+    const { name, email, phone, password, address, skills, role, otp } = req.body;
 
     const existingUser = await User.findOne({
       $or: [{ email }, { phone }],
     });
 
     if (existingUser) {
-      return res.status(400).json({
-        message: "User already exists",
-      });
+      return res.status(400).json({ message: "User already exists" });
     }
 
     if (otpStore[email] !== otp) {
@@ -87,14 +74,23 @@ router.post("/register", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // 🔥 Normalize skills
+    let parsedSkills = [];
+    if (Array.isArray(skills)) {
+      parsedSkills = skills;
+    } else if (typeof skills === "string") {
+      parsedSkills = skills.split(",").map(s => s.trim()).filter(Boolean);
+    }
+
     const newUser = new User({
       name,
       email,
       phone,
       password: hashedPassword,
       address,
-      skills,
-      profileImage : "https://res.cloudinary.com/djs5bhgwg/image/upload/v1774383665/fad5e79954583ad50ccb3f16ee64f66d_xapp4i.jpg",
+      role: role === "worker" ? "worker" : "user",
+      skills: role === "worker" ? parsedSkills : [],
+      profileImage: `${process.env.BASE_URL}/uploads/profile_images/default.png`,
     });
 
     await newUser.save();
@@ -168,6 +164,7 @@ router.post("/reset-password", async (req, res) => {
   }
 });
 
+// ================= UPDATE PROFILE =================
 router.put(
   "/update-profile",
   upload.single("profileImage"),
@@ -176,27 +173,31 @@ router.put(
       console.log("ROUTE HIT");
       console.log("BODY:", req.body || "No body");
       console.log("FILE:", req.file || "No file");
-
-      const { id, name, email, phone, address, skills } = req.body || {};
-
+ 
+      const { id, name, address, skills } = req.body || {};
+ 
       if (!id) {
         return res.status(400).json({ message: "Missing user ID" });
       }
-
+ 
       const user = await User.findById(id);
-
+ 
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-
+ 
       if (name) user.name = name;
-      if (email) user.email = email;
-      if (phone) user.phone = phone;
       if (address) user.address = address;
-      if (skills) user.skills = skills;
-
+ 
+      // FIX: FormData sends skills as a comma string — convert to array
+      if (skills) {
+        user.skills = skills
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+ 
       if (req.file) {
-        // Delete old image from disk if it exists and is not the default
         if (user.profileImage) {
           const oldFilename = user.profileImage.split(
             "/uploads/profile_images/",
@@ -206,12 +207,12 @@ router.put(
             if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
           }
         }
-
+ 
         user.profileImage = `/uploads/profile_images/${req.file.filename}`;
       }
-
+ 
       await user.save();
-
+ 
       return res.json({
         message: "Profile updated",
         user,
@@ -225,8 +226,5 @@ router.put(
     }
   },
 );
-
-
-
-
+// export default router;
 export default router;

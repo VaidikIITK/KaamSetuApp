@@ -444,7 +444,7 @@ export default function AccountScreen() {
 
         <SectionHeader title="My Applications" />
 
-        <Text style={styles.sectionTitle}>My Applications</Text>
+        {/* <Text style={styles.sectionTitle}>My Applications</Text> */}
 
         {myApplications.length === 0 ? (
           <View style={styles.emptyCard}>
