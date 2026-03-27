@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Popup from "../../components/Popup";
 
 export default function ResetPassword() {
   const { phone } = useLocalSearchParams();
@@ -23,6 +24,7 @@ export default function ResetPassword() {
   const [error, setError] = useState("");
 
   const inputs = useRef<(TextInput | null)[]>([]);
+  const [popup, setPopup] = useState("");
 
   // OTP change
   const handleChange = (value: string, index: number) => {
@@ -60,7 +62,7 @@ export default function ResetPassword() {
     }
 
     setError("");
-    alert("Password reset successful!");
+    setPopup("Password reset successful!");
     router.push("/login");
   };
 
@@ -146,6 +148,10 @@ export default function ResetPassword() {
           Back
         </Text>
       </View>
+      <Popup
+        message={popup}
+        onClose={() => setPopup("")}
+      />
     </LinearGradient>
   );
 }

@@ -2,21 +2,22 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage"; // ✅ Added
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router"; // ✅ Added
 import { useState } from "react";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   Alert,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { BASE_URL } from "../../constants/Config"; // ✅ Added
+
+import Popup from "../../components/Popup";
 
 import { KColors as Colors, Spacing } from "../../constants/kaamsetuTheme";
 
@@ -46,6 +47,9 @@ export default function PostJob() {
 
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
+  
+  const [popup, setPopup] = useState("");
+  const [popupType, setPopupType] = useState<"normal" | "error">("normal");
 
   const categories = [
     "Cleaning",
@@ -148,9 +152,11 @@ export default function PostJob() {
       const result = await response.json();
 
       if (response.ok) {
-        Alert.alert("Success 🎉", "Job posted successfully!", [
-          { text: "OK", onPress: () => router.push("/account") },
-        ]);
+        setPopup("Job posted successfully 🎉");
+
+        setTimeout(() => {
+          router.push("/account");
+        }, 1200);
       } else {
         Alert.alert("Failed", result.message || "Could not save job.");
       }
@@ -390,6 +396,10 @@ export default function PostJob() {
           <View style={{ height: 40 }} />
           </View>
       </ScrollView>
+      <Popup
+        message={popup}
+        onClose={() => setPopup("")}
+      />
     </LinearGradient>
   );
 }

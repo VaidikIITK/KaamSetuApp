@@ -169,7 +169,7 @@ export default function Register() {
         return;
       }
 
-      alert("Registered Successfully ✅");
+      setPopup("Registered Successfully ✅");
 
       router.replace("/(auth)/login");
     } catch (err) {
