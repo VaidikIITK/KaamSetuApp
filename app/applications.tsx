@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { Base_Url , API_BASE} from "../constants/Config";
 import {
   Alert,
   Modal,
@@ -58,7 +59,7 @@ export default function ApplicationsScreen() {
     visible: false,
     appId: "",
   });
-  const BASE_URL = "http://172.27.16.252:8030/api";
+  const BASE_URL = API_BASE;
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
 
   const fetchApplications = async () => {

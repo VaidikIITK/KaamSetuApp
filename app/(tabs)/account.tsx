@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
+import { Base_Url , API_BASE} from "../../constants/Config";
 import {
   ActivityIndicator,
   Alert,
@@ -21,7 +22,7 @@ import {
   Spacing,
 } from "../../constants/kaamsetuTheme";
 
-const API_URL = "http://172.27.16.252:8030";
+const API_URL = Base_Url;
 
 // ─── Reusable Components ────────────────────────────────────────────────────
 

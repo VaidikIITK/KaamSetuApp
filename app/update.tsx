@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { Base_Url , API_BASE} from "../constants/Config";
 import {
   Alert,
   Image,
@@ -23,7 +24,7 @@ import {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-const BASE_URL = "http://172.27.16.252:8030";
+const BASE_URL = Base_Url;
 
 // Avatar Component
 function Avatar({ name, size = 80 }: { name: string; size?: number }) {
@@ -161,7 +162,7 @@ export default function UpdateProfileScreen() {
       }
 
       const res = await fetch(
-        "http://172.27.16.252:8030/api/auth/update-profile",
+        "${API_BASE}/auth/update-profile",
         {
           method: "PUT",
           body: formData,

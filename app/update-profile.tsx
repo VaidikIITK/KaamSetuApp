@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { Base_Url , API_BASE} from "../constants/Config";
 import {
   Alert,
   Image,
@@ -20,7 +21,7 @@ import {
 } from "react-native";
 import { KColors as Colors, Radius } from "../constants/kaamsetuTheme";
 
-const BASE_URL = "http://172.27.16.252:8030";
+const BASE_URL = Base_Url;
 
 const SUGGESTIONS = [
   "Electrician",

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { Base_Url , API_BASE } from "../constants/Config";
 import {
   ActivityIndicator,
   FlatList,
@@ -19,7 +20,7 @@ import {
   Spacing,
 } from "../constants/kaamsetuTheme";
 
-const API_URL = "http://172.27.16.252:8030";
+const API_URL = Base_Url;
 
 type ApplicationItem = {
   _id: string;

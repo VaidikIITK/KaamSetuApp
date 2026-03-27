@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
+import { Base_Url,API_BASE } from "../../constants/Config";
 import {
   ActivityIndicator,
   Alert,
@@ -19,7 +20,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const BASE_URL = "http://172.27.16.252:8030/api"; // ← same IP as login.tsx
+const BASE_URL = API_BASE; // ← same IP as login.tsx
 
 const PURPLE = "#2196F3";
 const LIGHT_PURPLE = "#F3E5F5";

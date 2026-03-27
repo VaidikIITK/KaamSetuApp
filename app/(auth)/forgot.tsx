@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import { Base_Url , API_BASE} from "../../constants/Config";
 import {
   StyleSheet,
   Text,
@@ -51,7 +52,7 @@ export default function ForgotPassword() {
       }
       setSendingOtp(true); // 🔥 START
 
-      const res = await fetch("http://172.27.16.252:8030/api/auth/send-otp", {
+      const res = await fetch("${API_BASE}/auth/send-otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -119,7 +120,7 @@ export default function ForgotPassword() {
       }
       console.log("API CALL START");
       const res = await fetch(
-        "http://172.27.16.252:8030/api/auth/reset-password",
+        "${API_BASE}/auth/reset-password",
         {
           method: "POST",
           headers: {

@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
+import { Base_Url , API_BASE} from "../constants/Config";
 import {
   Alert,
   SafeAreaView,
@@ -95,7 +96,7 @@ export default function WorkerProfileScreen() {
         return;
       }
 
-      const res = await fetch("http://172.27.16.252:8030/api/chat/create", {
+      const res = await fetch("${API_BASE}/chat/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

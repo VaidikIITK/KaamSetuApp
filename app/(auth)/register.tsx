@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import { Base_Url , API_BASE} from "../../constants/Config";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -95,7 +96,7 @@ export default function Register() {
         return;
       }
       setSendingOtp(true); // 🔥 START LOADING
-      const res = await fetch("http://172.27.16.252:8030/api/auth/send-otp", {
+      const res = await fetch("${API_BASE}/auth/send-otp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -145,7 +146,7 @@ export default function Register() {
         return;
       }
 
-      const res = await fetch("http://172.27.16.252:8030/api/auth/register", {
+      const res = await fetch("${API_BASE}/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
