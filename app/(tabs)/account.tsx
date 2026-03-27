@@ -63,7 +63,10 @@ function StarRating({ rating }: { rating: number }) {
       {[1, 2, 3, 4, 5].map((i) => (
         <Text
           key={i}
-          style={{ color: i <= Math.round(rating) ? Colors.starGold : "#DDD", fontSize: 14 }}
+          style={{
+            color: i <= Math.round(rating) ? Colors.starGold : "#DDD",
+            fontSize: 14,
+          }}
         >
           ★
         </Text>
@@ -86,13 +89,21 @@ function SectionHeader({ title }: { title: string }) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; bg: string; color: string }> = {
-    pending:     { label: "Pending",          bg: Colors.warningLight, color: Colors.warning },
-    in_progress: { label: "Work in Progress", bg: Colors.successLight, color: Colors.success },
-    "in-progress":{ label: "Work in Progress",bg: Colors.successLight, color: Colors.success },
-    completed:   { label: "Completed",        bg: "#E3F2FD",           color: "#1565C0" },
-    cancelled:   { label: "Cancelled",        bg: Colors.errorLight,   color: Colors.error },
-    accepted:    { label: "Accepted",         bg: Colors.successLight, color: Colors.success },
-    rejected:    { label: "Rejected",         bg: Colors.errorLight,   color: Colors.error },
+    pending: { label: "Pending", bg: Colors.warningLight, color: Colors.warning },
+    in_progress: {
+      label: "Work in Progress",
+      bg: Colors.successLight,
+      color: Colors.success,
+    },
+    "in-progress": {
+      label: "Work in Progress",
+      bg: Colors.successLight,
+      color: Colors.success,
+    },
+    completed: { label: "Completed", bg: "#E3F2FD", color: "#1565C0" },
+    cancelled: { label: "Cancelled", bg: Colors.errorLight, color: Colors.error },
+    accepted: { label: "Accepted", bg: Colors.successLight, color: Colors.success },
+    rejected: { label: "Rejected", bg: Colors.errorLight, color: Colors.error },
   };
 
   const s = map[status] ?? map.pending;
@@ -114,9 +125,9 @@ type UserType = {
   address?: string;
   skills?: string[];
   rating?: number;
-  averageRating?: number;  // 👈 add this
-  totalRatings?: number;   // 👈 add this
-  profileImage?: string; // 🔥 ADD THIS
+  averageRating?: number;
+  totalRatings?: number;
+  profileImage?: string;
   role?: string;
 };
 
@@ -164,25 +175,25 @@ type ReferralType = {
 export default function AccountScreen() {
   const router = useRouter();
 
-  const [refreshing, setRefreshing]               = useState(false);
-  const [loading, setLoading]                     = useState(true);
-  const [user, setUser]                           = useState<UserType | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<UserType | null>(null);
 
   // USER (employer) state
-  const [myRequests, setMyRequests]               = useState<JobType[]>([]);
-  const [myPastRequests, setMyPastRequests]       = useState<JobType[]>([]);
+  const [myRequests, setMyRequests] = useState<JobType[]>([]);
+  const [myPastRequests, setMyPastRequests] = useState<JobType[]>([]);
 
   // WORKER state
-  const [myApplications, setMyApplications]       = useState<ApplicationType[]>([]);
+  const [myApplications, setMyApplications] = useState<ApplicationType[]>([]);
   const [myPastApplications, setMyPastApplications] = useState<ApplicationType[]>([]);
-  const [myReferrals, setMyReferrals]             = useState<ReferralType[]>([]);
+  const [myReferrals, setMyReferrals] = useState<ReferralType[]>([]);
 
   // ─── Load Data ──────────────────────────────────────────────────────────
 
   const loadAccountData = async () => {
     setLoading(true);
     try {
-      const token      = await AsyncStorage.getItem("token");
+      const token = await AsyncStorage.getItem("token");
       const userString = await AsyncStorage.getItem("user");
 
       if (!token || !userString) {
@@ -192,58 +203,56 @@ export default function AccountScreen() {
 
       const parsedUser: UserType = JSON.parse(userString);
 
-// Fetch fresh user data from API to get updated rating
-const userRes = await fetch(`${API_URL}/api/auth/me`, {
-  headers: { Authorization: `Bearer ${token}` },
-});
-if (userRes.ok) {
-  const userData = await userRes.json();
-  setUser(userData.user || parsedUser);
-  await AsyncStorage.setItem("user", JSON.stringify(userData.user || parsedUser));
-} else {
-  setUser(parsedUser);
-}
+      const userRes = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setUser(userData.user || parsedUser);
+        await AsyncStorage.setItem("user", JSON.stringify(userData.user || parsedUser));
+      } else {
+        setUser(parsedUser);
+      }
 
       const headers = { Authorization: `Bearer ${token}` };
 
       if (parsedUser.role === "worker") {
-        // ── WORKER: fetch current apps + past apps + referrals ──
         const [appsRes, pastAppsRes, referralsRes] = await Promise.all([
-          fetch(`${API_URL}/api/applications/my-applications`,      { headers }),
+          fetch(`${API_URL}/api/applications/my-applications`, { headers }),
           fetch(`${API_URL}/api/applications/my-past-applications`, { headers }),
-          fetch(`${API_URL}/api/referral`,                          { headers }),
+          fetch(`${API_URL}/api/referral`, { headers }),
         ]);
 
-        const appsData     = await appsRes.json();
+        const appsData = await appsRes.json();
         const pastAppsData = await pastAppsRes.json();
-        const referralsData= await referralsRes.json();
+        const referralsData = await referralsRes.json();
 
-        setMyApplications(
-          appsRes.ok ? appsData.applications || [] : []
-        );
+        setMyApplications(appsRes.ok ? appsData.applications || [] : []);
         setMyPastApplications(
-          pastAppsRes.ok ? pastAppsData.applications || [] : []
+          pastAppsRes.ok ? pastAppsData.applications || [] : [],
         );
         setMyReferrals(
           referralsRes.ok && Array.isArray(referralsData.referrals)
             ? referralsData.referrals
-            : []
+            : [],
         );
       } else {
-        // ── USER (employer): fetch current jobs + past jobs ──
         const [requestsRes, pastRequestsRes] = await Promise.all([
-          fetch(`${API_URL}/api/jobs/my-requests/${parsedUser._id}`,      { headers }),
+          fetch(`${API_URL}/api/jobs/my-requests/${parsedUser._id}`, { headers }),
           fetch(`${API_URL}/api/jobs/my-past-requests/${parsedUser._id}`, { headers }),
         ]);
 
-        const requestsData     = await requestsRes.json();
+        const requestsData = await requestsRes.json();
         const pastRequestsData = await pastRequestsRes.json();
 
         setMyRequests(
-          requestsRes.ok && Array.isArray(requestsData) ? requestsData : []
+          requestsRes.ok && Array.isArray(requestsData) ? requestsData : [],
         );
         setMyPastRequests(
-          pastRequestsRes.ok && Array.isArray(pastRequestsData) ? pastRequestsData : []
+          pastRequestsRes.ok && Array.isArray(pastRequestsData)
+            ? pastRequestsData
+            : [],
         );
       }
     } catch (error) {
@@ -273,10 +282,9 @@ if (userRes.ok) {
     router.replace("/(auth)/login");
   };
 
-  const handleUpdateProfile  = () => router.push("/update-profile");
-  const handleOpenReferrals  = () => router.push("/referrals");
+  const handleUpdateProfile = () => router.push("/update-profile");
+  const handleOpenReferrals = () => router.push("/referrals");
 
-  // Delete a pending job request (employer)
   const handleDeleteJob = (jobId: string) => {
     Alert.alert(
       "Delete Request",
@@ -288,7 +296,7 @@ if (userRes.ok) {
           style: "destructive",
           onPress: async () => {
             try {
-              const token    = await AsyncStorage.getItem("token");
+              const token = await AsyncStorage.getItem("token");
               const response = await fetch(`${API_URL}/api/jobs/${jobId}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
@@ -310,7 +318,6 @@ if (userRes.ok) {
     );
   };
 
-  // Mark an in-progress job as completed (employer)
   const handleCompleteJob = (jobId: string) => {
     Alert.alert(
       "Mark as Completed",
@@ -321,7 +328,7 @@ if (userRes.ok) {
           text: "Complete",
           onPress: async () => {
             try {
-              const token    = await AsyncStorage.getItem("token");
+              const token = await AsyncStorage.getItem("token");
               const response = await fetch(`${API_URL}/api/jobs/${jobId}/complete`, {
                 method: "PATCH",
                 headers: { Authorization: `Bearer ${token}` },
@@ -329,7 +336,6 @@ if (userRes.ok) {
               const data = await response.json();
 
               if (response.ok) {
-                // Move it from current → past
                 setMyRequests((prev) => prev.filter((j) => j._id !== jobId));
                 setMyPastRequests((prev) => [data.job, ...prev]);
                 Alert.alert("Success", "Job marked as completed!");
@@ -345,7 +351,6 @@ if (userRes.ok) {
     );
   };
 
-  // Withdraw a pending application (worker)
   const handleWithdrawApplication = (applicationId: string) => {
     Alert.alert(
       "Withdraw Application",
@@ -357,7 +362,7 @@ if (userRes.ok) {
           style: "destructive",
           onPress: async () => {
             try {
-              const token    = await AsyncStorage.getItem("token");
+              const token = await AsyncStorage.getItem("token");
               const response = await fetch(
                 `${API_URL}/api/applications/withdraw/${applicationId}`,
                 { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
@@ -365,7 +370,9 @@ if (userRes.ok) {
               const data = await response.json();
 
               if (response.ok) {
-                setMyApplications((prev) => prev.filter((a) => a._id !== applicationId));
+                setMyApplications((prev) =>
+                  prev.filter((a) => a._id !== applicationId),
+                );
                 Alert.alert("Success", "Application withdrawn.");
               } else {
                 Alert.alert("Error", data.message || "Failed to withdraw.");
@@ -379,7 +386,50 @@ if (userRes.ok) {
     );
   };
 
-  // Delete a past (completed/rejected) application from history (worker)
+  const handleOpenChat = async (app: ApplicationType) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const userString = await AsyncStorage.getItem("user");
+
+      if (!token || !userString) {
+        Alert.alert("Error", "Please login again.");
+        return;
+      }
+
+      const parsedUser = JSON.parse(userString);
+      const workerId = parsedUser?._id || parsedUser?.id;
+
+      if (!app?.jobId?._id || !workerId || !app?._id) {
+        Alert.alert("Error", "Missing chat details.");
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/chat/create`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobId: app.jobId._id,
+          workerId,
+          applicationId: app._id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.chat?._id) {
+        router.push(`/job-chat?chatId=${data.chat._id}`);
+      } else {
+        Alert.alert("Error", data.message || "Could not open chat.");
+      }
+    } catch (error) {
+      console.log("Chat open error:", error);
+      Alert.alert("Error", "A network error occurred.");
+    }
+  };
+
   const handleDeletePastApplication = (applicationId: string) => {
     Alert.alert(
       "Remove from History",
@@ -391,7 +441,7 @@ if (userRes.ok) {
           style: "destructive",
           onPress: async () => {
             try {
-              const token    = await AsyncStorage.getItem("token");
+              const token = await AsyncStorage.getItem("token");
               const response = await fetch(
                 `${API_URL}/api/applications/delete/${applicationId}`,
                 { method: "DELETE", headers: { Authorization: `Bearer ${token}` } },
@@ -399,7 +449,9 @@ if (userRes.ok) {
               const data = await response.json();
 
               if (response.ok) {
-                setMyPastApplications((prev) => prev.filter((a) => a._id !== applicationId));
+                setMyPastApplications((prev) =>
+                  prev.filter((a) => a._id !== applicationId),
+                );
               } else {
                 Alert.alert("Error", data.message || "Failed to remove record.");
               }
@@ -430,14 +482,12 @@ if (userRes.ok) {
 
   const renderUserSections = () => (
     <>
-      {/* ── My Current Requests ── */}
       <SectionHeader title="My Requests" />
       {loading ? renderLoadingSpinner() : myRequests.length === 0 ? (
         renderEmpty("No active requests found.")
       ) : (
         myRequests.map((job) => (
           <View key={job._id} style={styles.requestCard}>
-            {/* Delete icon — only for pending jobs */}
             {(job.status || "").toLowerCase() === "pending" && (
               <TouchableOpacity
                 style={styles.topRightDeleteBtn}
@@ -469,9 +519,8 @@ if (userRes.ok) {
               <Text style={styles.outlineBtnText}>View Applicants</Text>
             </TouchableOpacity>
 
-            {/* Complete button — only for in-progress jobs */}
             {["in_progress", "in-progress"].includes(
-              (job.status || "").toLowerCase()
+              (job.status || "").toLowerCase(),
             ) && (
               <TouchableOpacity
                 style={styles.completeBtn}
@@ -484,7 +533,6 @@ if (userRes.ok) {
         ))
       )}
 
-      {/* ── Past Requests ── */}
       <SectionHeader title="Past Requests" />
       {loading ? renderLoadingSpinner() : myPastRequests.length === 0 ? (
         renderEmpty("No past requests found.")
@@ -519,7 +567,6 @@ if (userRes.ok) {
 
   const renderWorkerSections = () => (
     <>
-      {/* ── My Current Applications ── */}
       <SectionHeader title="My Applications" />
       {loading ? renderLoadingSpinner() : myApplications.length === 0 ? (
         renderEmpty("No active applications found.")
@@ -539,27 +586,42 @@ if (userRes.ok) {
               📅 Applied: {new Date(app.createdAt).toLocaleDateString()}
             </Text>
 
-            {/* Withdraw — only for pending applications */}
-            {app.status === "pending" && (
+            {app.status === "pending" ? (
+              <View style={styles.workerActionRow}>
+                <TouchableOpacity
+                  style={styles.chatBtn}
+                  onPress={() => handleOpenChat(app)}
+                >
+                  <Text style={styles.chatBtnText}>Chat</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.dangerOutlineBtnCompact}
+                  onPress={() => handleWithdrawApplication(app._id)}
+                >
+                  <Text style={styles.dangerOutlineBtnText}>
+                    Withdraw
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
               <TouchableOpacity
-                style={styles.dangerOutlineBtn}
-                onPress={() => handleWithdrawApplication(app._id)}
+                style={styles.chatBtnSingle}
+                onPress={() => handleOpenChat(app)}
               >
-                <Text style={styles.dangerOutlineBtnText}>Withdraw Application</Text>
+                <Text style={styles.chatBtnText}>Chat</Text>
               </TouchableOpacity>
             )}
           </View>
         ))
       )}
 
-      {/* ── Past Applications ── */}
       <SectionHeader title="Past Applications" />
       {loading ? renderLoadingSpinner() : myPastApplications.length === 0 ? (
         renderEmpty("No past applications found.")
       ) : (
         myPastApplications.map((app) => (
           <View key={app._id} style={[styles.requestCard, styles.pastCard]}>
-            {/* Delete history icon */}
             <TouchableOpacity
               style={styles.topRightDeleteBtn}
               onPress={() => handleDeletePastApplication(app._id)}
@@ -584,7 +646,6 @@ if (userRes.ok) {
         ))
       )}
 
-      {/* ── Referred Workers ── */}
       <SectionHeader title="Referred Workers" />
       {loading ? (
         <View style={styles.centered}>
@@ -619,7 +680,6 @@ if (userRes.ok) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* ── Profile Card ── */}
         <View style={styles.profileCard}>
           <View style={styles.profileTop}>
             <Avatar
@@ -640,33 +700,45 @@ if (userRes.ok) {
                 </TouchableOpacity>
               </View>
 
-             <StarRating rating={user?.averageRating || 0} />
+              <StarRating rating={user?.averageRating || 0} />
 
-              {/* Role badge */}
               {user?.role && (
-                <View style={[styles.roleBadge,
-                  { backgroundColor: user.role === "worker"
-                    ? Colors.primary + "20"
-                    : Colors.warningLight }
-                ]}>
-                  <Text style={[styles.roleBadgeText,
-                    { color: user.role === "worker" ? Colors.primary : Colors.warning }
-                  ]}>
+                <View
+                  style={[
+                    styles.roleBadge,
+                    {
+                      backgroundColor:
+                        user.role === "worker"
+                          ? Colors.primary + "20"
+                          : Colors.warningLight,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.roleBadgeText,
+                      {
+                        color:
+                          user.role === "worker" ? Colors.primary : Colors.warning,
+                      },
+                    ]}
+                  >
                     {user.role === "worker" ? "👷 Worker" : "🧑‍💼 Employer"}
                   </Text>
                 </View>
               )}
 
-              {/* Skills — only for workers */}
-              {user?.role === "worker" && user.skills && user.skills.length > 0 && (
-                <View style={styles.tagsRow}>
-                  {user.skills.map((tag) => (
-                    <View key={tag} style={styles.tag}>
-                      <Text style={styles.tagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+              {user?.role === "worker" &&
+                user.skills &&
+                user.skills.length > 0 && (
+                  <View style={styles.tagsRow}>
+                    {user.skills.map((tag) => (
+                      <View key={tag} style={styles.tag}>
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
 
               <Text style={styles.profileText}>Email: {user?.email || "-"}</Text>
               <Text style={styles.profileText}>Phone: {user?.phone || "-"}</Text>
@@ -681,12 +753,8 @@ if (userRes.ok) {
           </TouchableOpacity>
         </View>
 
-        {/* ── Role-based Sections ── */}
-        {user?.role === "worker"
-          ? renderWorkerSections()
-          : renderUserSections()}
+        {user?.role === "worker" ? renderWorkerSections() : renderUserSections()}
 
-        {/* ── Logout ── */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutBtnText}>Logout</Text>
         </TouchableOpacity>
@@ -711,9 +779,12 @@ const styles = StyleSheet.create({
 
   scrollContent: { padding: Spacing.md, gap: 14 },
 
-  centered: { paddingVertical: 28, alignItems: "center", justifyContent: "center" },
+  centered: {
+    paddingVertical: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-  // ── Profile Card
   profileCard: {
     backgroundColor: Colors.cardBg,
     borderRadius: Radius.lg,
@@ -735,15 +806,16 @@ const styles = StyleSheet.create({
   editIcon: { padding: 4 },
   editIconText: { fontSize: 16 },
 
-  // ── Avatar
-  avatar: { backgroundColor: Colors.primary, alignItems: "center", justifyContent: "center" },
+  avatar: {
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarText: { color: Colors.white, fontWeight: "700" },
 
-  // ── Stars
   starsRow: { flexDirection: "row", alignItems: "center", marginTop: 2 },
   ratingText: { fontSize: 13, color: Colors.textSecondary },
 
-  // ── Role Badge
   roleBadge: {
     alignSelf: "flex-start",
     borderRadius: 10,
@@ -753,7 +825,6 @@ const styles = StyleSheet.create({
   },
   roleBadgeText: { fontSize: 12, fontWeight: "700" },
 
-  // ── Skills Tags
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   tag: {
     backgroundColor: Colors.primary + "20",
@@ -763,16 +834,33 @@ const styles = StyleSheet.create({
   },
   tagText: { fontSize: 12, color: Colors.primary, fontWeight: "600" },
 
-  // ── Section Header
-  sectionHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  sectionAccent: { width: 4, height: 18, borderRadius: 2, backgroundColor: Colors.primary },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: Colors.textPrimary, marginTop: 6 },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginTop: 6,
+  },
 
-  // ── Status Badge
-  badge: { alignSelf: "flex-start", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  badge: {
+    alignSelf: "flex-start",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
   badgeText: { fontSize: 12, fontWeight: "600" },
 
-  // ── Buttons
   primaryBtn: {
     backgroundColor: Colors.primary,
     borderRadius: Radius.full,
@@ -816,9 +904,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 6,
   },
+  dangerOutlineBtnCompact: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: Colors.error,
+    borderRadius: Radius.full,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
   dangerOutlineBtnText: { color: Colors.error, fontWeight: "700" },
 
-  // ── Cards
+  chatBtn: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  chatBtnSingle: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  chatBtnText: { color: Colors.white, fontWeight: "700" },
+
   emptyCard: {
     backgroundColor: Colors.cardBg,
     borderRadius: Radius.lg,
@@ -843,6 +959,12 @@ const styles = StyleSheet.create({
   },
   requestTitle: { fontSize: 17, fontWeight: "700", color: Colors.textPrimary },
   requestSub: { fontSize: 14, color: Colors.textSecondary },
+
+  workerActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
 
   topRightDeleteBtn: {
     position: "absolute",

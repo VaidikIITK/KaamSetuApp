@@ -1,20 +1,17 @@
-// routes/referral.js
-// Handles: Add referral, Remove referral, Get all referrals
-// Mount in server.js as: app.use("/api/referral", referralRoutes);
-
 import express from "express";
+import mongoose from "mongoose";
 import auth from "../middleware/auth.js";
+import Application from "../models/Application.js";
+import Job from "../models/Job.js";
 import User from "../models/User.js";
 
 const router = express.Router();
 
 // ================= GET ALL REFERRALS =================
-// GET /api/referral
-// Returns all referrals of the logged-in user
 router.get("/", auth, async(req, res) => {
     try {
         const user = await User.findById(req.user.id)
-            .populate("referrals.jobId", "title company")
+            .populate("referrals.jobId", "category description")
             .select("referrals");
 
         if (!user) {
@@ -28,26 +25,33 @@ router.get("/", auth, async(req, res) => {
 });
 
 // ================= ADD REFERRAL =================
-// POST /api/referral/add
-// Body: { workerName, workerPhone, skills, jobId }
 router.post("/add", auth, async(req, res) => {
     try {
         const { workerName, workerPhone, skills, jobId } = req.body;
 
-        // Basic validation
         if (!workerName || !workerPhone || !jobId) {
             return res.status(400).json({
                 message: "Worker name, worker phone, and jobId are required",
             });
         }
 
-        const user = await User.findById(req.user.id);
+        if (!mongoose.Types.ObjectId.isValid(jobId)) {
+            return res.status(400).json({ message: "Invalid jobId" });
+        }
+
+        const [user, job] = await Promise.all([
+            User.findById(req.user.id),
+            Job.findById(jobId),
+        ]);
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // Check if this worker is already referred by this user for the same job
+        if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
         const alreadyReferred = user.referrals.find(
             (r) =>
             r.workerPhone === workerPhone &&
@@ -61,7 +65,23 @@ router.post("/add", auth, async(req, res) => {
             });
         }
 
-        // Add new referral to the array
+        // prevent duplicate referral-based applications too
+        const existingReferralApplication = await Application.findOne({
+            jobId,
+            workerPhone,
+            source: "referral",
+            referrerId: req.user.id,
+        });
+
+        if (existingReferralApplication) {
+            return res.status(400).json({
+                message: "This referred worker is already in the applicant list for this job",
+            });
+        }
+
+        // if worker is already a registered user, attach workerId
+        const existingWorker = await User.findOne({ phone: workerPhone }).select("_id");
+
         user.referrals.push({
             workerName,
             workerPhone,
@@ -71,8 +91,22 @@ router.post("/add", auth, async(req, res) => {
 
         await user.save();
 
+        const createdReferral = user.referrals[user.referrals.length - 1];
+
+        await Application.create({
+            jobId,
+            workerId: existingWorker ? existingWorker._id : null,
+            workerName,
+            workerPhone,
+            skills: skills || [],
+            status: "pending",
+            source: "referral",
+            referrerId: req.user.id,
+            referralId: createdReferral._id,
+        });
+
         const updatedUser = await User.findById(req.user.id)
-            .populate("referrals.jobId", "title company")
+            .populate("referrals.jobId", "category description")
             .select("referrals");
 
         res.json({
@@ -85,8 +119,6 @@ router.post("/add", auth, async(req, res) => {
 });
 
 // ================= REMOVE REFERRAL =================
-// DELETE /api/referral/remove/:referralId
-// referralId is the MongoDB _id of the referral subdocument
 router.delete("/remove/:referralId", auth, async(req, res) => {
     try {
         const { referralId } = req.params;
@@ -103,12 +135,18 @@ router.delete("/remove/:referralId", auth, async(req, res) => {
             return res.status(404).json({ message: "Referral not found" });
         }
 
-        user.referrals.pull({ _id: referralId });
+        // remove matching referral-based application too
+        await Application.deleteMany({
+            referralId,
+            referrerId: req.user.id,
+            source: "referral",
+        });
 
+        user.referrals.pull({ _id: referralId });
         await user.save();
 
         const updatedUser = await User.findById(req.user.id)
-            .populate("referrals.jobId", "title company")
+            .populate("referrals.jobId", "category description")
             .select("referrals");
 
         res.json({

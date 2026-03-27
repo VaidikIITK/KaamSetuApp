@@ -1,4 +1,3 @@
-// models/Application.js
 import mongoose from "mongoose";
 
 const applicationSchema = new mongoose.Schema({
@@ -7,35 +6,51 @@ const applicationSchema = new mongoose.Schema({
         ref: "Job",
         required: true,
     },
+
+    // keep nullable because referred worker may not be a registered user
     workerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: true,
+        default: null,
     },
-    expectedPay: {
-        type: Number,
-        required: true,
-    },
-    preferredTime: {
-        type: String, // e.g. "Morning", "Afternoon", "Evening", "Anytime"
-        required: true,
-    },
-    status: {
-        type: String,
-        enum: ["pending", "accepted", "rejected"],
-        default: "pending",
-    },
-    remarks: String, // ✅ ADD THIS
-    status: {
-        type: String,
-        enum: ["pending", "accepted", "rejected"],
-        default: "pending",
-    },
-    // In your Application model
-status: { type: String, enum: ["pending", "accepted", "rejected", "completed"], default: "pending" },
-rating: { type: Number },
-review: { type: String },
 
+    workerName: {
+        type: String,
+        default: "",
+    },
+
+    workerPhone: {
+        type: String,
+        default: "",
+    },
+
+    skills: {
+        type: [String],
+        default: [],
+    },
+
+    status: {
+        type: String,
+        default: "pending",
+    },
+
+    source: {
+        type: String,
+        enum: ["direct", "referral"],
+        default: "direct",
+    },
+
+    referrerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+    },
+
+    referralId: {
+        type: mongoose.Schema.Types.ObjectId,
+        default: null,
+    },
 }, { timestamps: true });
 
-export default mongoose.model("Application", applicationSchema);
+const Application = mongoose.model("Application", applicationSchema);
+export default Application;

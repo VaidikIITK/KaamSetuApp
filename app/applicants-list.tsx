@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   SafeAreaView,
   StatusBar,
@@ -10,7 +11,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Alert,
 } from "react-native";
 import {
   KColors as Colors,
@@ -21,12 +21,25 @@ import {
 
 const API_URL = "http://172.27.16.252:8030";
 
+type WorkerRef =
+  | string
+  | {
+      _id: string;
+      name?: string;
+      phone?: string;
+      skills?: string[];
+    }
+  | null;
+
 type ApplicationItem = {
   _id: string;
-  workerId: any;
+  workerId?: WorkerRef;
+  workerName?: string;
+  workerPhone?: string;
+  skills?: string[];
   status?: string;
-  expectedPay?: number;
-  createdAt?: string;
+  source?: "direct" | "referral";
+  jobId?: string | { _id: string };
 };
 
 type ReferralItem = {
@@ -50,6 +63,17 @@ export default function ApplicationListScreen() {
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [referrals, setReferrals] = useState<ReferralItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const getWorkerIdValue = (workerId?: WorkerRef) => {
+    if (!workerId) return null;
+    return typeof workerId === "string" ? workerId : workerId._id;
+  };
+
+  const getJobIdValue = (app: ApplicationItem) => {
+    if (app.jobId && typeof app.jobId !== "string") return app.jobId._id;
+    if (app.jobId && typeof app.jobId === "string") return app.jobId;
+    return jobId || null;
+  };
 
   const fetchData = async () => {
     try {
@@ -160,6 +184,99 @@ export default function ApplicationListScreen() {
     return rows;
   }, [applications, filteredReferrals]);
 
+  const handleAccept = async (applicationId: string) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+
+      const res = await fetch(
+        `${API_URL}/api/applications/accept/${applicationId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
+        Alert.alert("Success", "Worker accepted!");
+        fetchData();
+      } else {
+        Alert.alert("Error", data.message || "Failed to accept");
+      }
+    } catch (error) {
+      console.log("Accept error:", error);
+      Alert.alert("Error", "Something went wrong");
+    }
+  };
+
+  const handleReject = async (applicationId: string) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+
+      const res = await fetch(
+        `${API_URL}/api/applications/reject/${applicationId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
+        Alert.alert("Success", "Worker rejected!");
+        fetchData();
+      } else {
+        Alert.alert("Error", data.message || "Failed to reject");
+      }
+    } catch (error) {
+      console.log("Reject error:", error);
+      Alert.alert("Error", "Something went wrong");
+    }
+  };
+
+  const handleChat = async (app: ApplicationItem) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const workerIdValue = getWorkerIdValue(app.workerId);
+      const jobIdValue = getJobIdValue(app);
+
+      if (!token || !jobIdValue || !workerIdValue || !app._id) {
+        Alert.alert("Error", "Missing chat details");
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/chat/create`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobId: jobIdValue,
+          workerId: workerIdValue,
+          applicationId: app._id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.chat?._id) {
+        router.push(`/job-chat?chatId=${data.chat._id}`);
+      } else {
+        Alert.alert("Error", data.message || "Could not open chat");
+      }
+    } catch (error) {
+      console.log("Chat error:", error);
+      Alert.alert("Error", "Something went wrong");
+    }
+  };
+
   const renderItem = ({ item }: { item: ListRow }) => {
     if (item.type === "section") {
       return (
@@ -171,22 +288,77 @@ export default function ApplicationListScreen() {
 
     if (item.type === "application") {
       const app = item.data;
+      const workerIdValue = getWorkerIdValue(app.workerId);
+      const canOpenProfile = !!workerIdValue;
+      const status = app.status || "pending";
 
       return (
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() =>
-            router.push(
-              `/worker-profile?workerId=${app.workerId}&jobId=${jobId}&applicationId=${app._id}`,
-            )
-          }
-        >
-          <Text style={styles.cardTitle}>Worker ID: {app.workerId}</Text>
-          <Text style={styles.cardSubtitle}>
-            Status: {app.status || "pending"}
-          </Text>
-          <Text style={styles.openText}>View Profile →</Text>
-        </TouchableOpacity>
+        <View style={styles.card}>
+          <TouchableOpacity
+            disabled={!canOpenProfile}
+            onPress={() => {
+              if (!workerIdValue) return;
+              router.push(
+                `/worker-profile?workerId=${workerIdValue}&jobId=${jobId}&applicationId=${app._id}`,
+              );
+            }}
+          >
+            <Text style={styles.cardTitle}>
+              {app.workerName ||
+                (typeof app.workerId === "object" && app.workerId?.name) ||
+                "Worker"}
+            </Text>
+
+            {app.workerPhone ? (
+              <Text style={styles.cardSubtitle}>Phone: {app.workerPhone}</Text>
+            ) : null}
+
+            {app.skills && app.skills.length > 0 ? (
+              <Text style={styles.cardSubtitle}>
+                Skills: {app.skills.join(", ")}
+              </Text>
+            ) : null}
+
+            <Text style={styles.cardSubtitle}>Status: {status}</Text>
+
+            <Text style={styles.cardSubtitle}>
+              Type: {app.source === "referral" ? "Referred" : "Applied"}
+            </Text>
+
+            {canOpenProfile ? (
+              <Text style={styles.openText}>View Profile →</Text>
+            ) : (
+              <Text style={styles.metaText}>Profile not available</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.actionRow}>
+            {status === "pending" && (
+              <>
+                <TouchableOpacity
+                  style={styles.acceptBtn}
+                  onPress={() => handleAccept(app._id)}
+                >
+                  <Text style={styles.acceptBtnText}>Accept</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.rejectBtn}
+                  onPress={() => handleReject(app._id)}
+                >
+                  <Text style={styles.rejectBtnText}>Reject</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.chatBtn}
+              onPress={() => handleChat(app)}
+            >
+              <Text style={styles.chatBtnText}>Chat</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       );
     }
 
@@ -399,26 +571,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textMuted,
   },
+
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+    flexWrap: "wrap",
+  },
+
   acceptBtn: {
     flex: 1,
     backgroundColor: "#2E7D32",
     borderRadius: Radius.full,
     paddingVertical: 12,
     alignItems: "center",
+    minWidth: 90,
   },
+
   acceptBtnText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 15,
   },
+
   rejectBtn: {
     flex: 1,
     backgroundColor: "#C62828",
     borderRadius: Radius.full,
     paddingVertical: 12,
     alignItems: "center",
+    minWidth: 90,
   },
+
   rejectBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+
+  chatBtn: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
+    paddingVertical: 12,
+    alignItems: "center",
+    minWidth: 90,
+  },
+
+  chatBtnText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 15,

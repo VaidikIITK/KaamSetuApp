@@ -14,21 +14,18 @@ const userSchema = new mongoose.Schema({
         enum: ["user", "worker"],
         default: "user",
     },
-    ratings: [
-      {
+    ratings: [{
         rating: { type: Number, min: 1, max: 5 },
         review: { type: String },
         givenBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         createdAt: { type: Date, default: Date.now },
-      }
-    ],
+    }],
     averageRating: { type: Number, default: 0 },
     totalRatings: { type: Number, default: 0 },
-  },
-  { timestamps: true },
-);
+}, { timestamps: true });
 
-    // ================= REFERRALS =================
+// ================= REFERRALS =================
+userSchema.add({
     referrals: [{
         workerName: {
             type: String,
@@ -40,7 +37,7 @@ const userSchema = new mongoose.Schema({
         },
         skills: [{
             type: String,
-        }, ],
+        }],
         jobId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Job",
@@ -50,7 +47,7 @@ const userSchema = new mongoose.Schema({
             type: Date,
             default: Date.now,
         },
-    }, ],
-}, { timestamps: true });
+    }],
+});
 
 export default mongoose.model("User", userSchema);
