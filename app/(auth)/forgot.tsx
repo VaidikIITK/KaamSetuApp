@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Popup from "../../components/Popup";
 
 export default function ForgotPassword() {
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -27,6 +28,7 @@ export default function ForgotPassword() {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const [error, setError] = useState("");
+  const [popup, setPopup] = useState("");
 
   useEffect(() => {
     inputs.current[0]?.focus();
@@ -68,7 +70,7 @@ export default function ForgotPassword() {
       }
 
       setError("");
-      alert("OTP sent 📩");
+      setPopup("OTP sent 📩");
 
       setTimer(30);
     } catch (err) {
@@ -142,7 +144,7 @@ export default function ForgotPassword() {
       }
 
       setError("");
-      alert("Password reset successful ✅");
+      setPopup("Password reset successful ✅");
 
       router.replace("/(auth)/login");
     } catch (err) {
@@ -276,6 +278,10 @@ export default function ForgotPassword() {
           Back to Login
         </Text>
       </View>
+      <Popup
+        message={popup}
+        onClose={() => setPopup("")}
+      />
     </LinearGradient>
   );
 }
