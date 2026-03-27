@@ -7,13 +7,14 @@ const router = express.Router();
 // ─── GET ALL JOBS ─────────────────────────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
-    const jobs = await Job.find();
+    const jobs = await Job.find({
+      status: { $nin: ["completed", "cancelled"] }, // ← exclude these
+    });
     res.json(jobs);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
-
 // ─── CREATE A JOB ─────────────────────────────────────────────────────────────
 router.post("/create", async (req, res) => {
   try {
@@ -88,7 +89,8 @@ router.patch("/:id/complete", auth, async (req, res) => {
     const currentStatus = (job.status || "").trim().toLowerCase();
     if (!["in_progress", "in-progress"].includes(currentStatus)) {
       return res.status(400).json({
-        error: "Only jobs that are currently in progress can be marked complete.",
+        error:
+          "Only jobs that are currently in progress can be marked complete.",
         current_status: job.status,
       });
     }
