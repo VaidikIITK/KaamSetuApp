@@ -24,9 +24,7 @@ const userSchema = new mongoose.Schema({
     ],
     averageRating: { type: Number, default: 0 },
     totalRatings: { type: Number, default: 0 },
-  },
-  { timestamps: true },
-);
+ 
 
     // ================= REFERRALS =================
     referrals: [{
