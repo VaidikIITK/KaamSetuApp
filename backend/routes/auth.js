@@ -3,7 +3,6 @@ import express from "express";
 import fs from "fs";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import nodemailer from "nodemailer";
 import path from "path";
 import User from "../models/User.js";
 
@@ -30,35 +29,47 @@ let otpStore = {};
 
 // ================= SEND OTP =================
 router.post("/send-otp", async (req, res) => {
-  const { email } = req.body;
+  try {
+    const { email } = req.body;
 
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  otpStore[email] = otp;
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ message: "Invalid email" });
+    }
 
-  console.log("OTP:", otp);
+    // 🔐 generate OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+    // 🧠 store OTP in backend (IMPORTANT for verification)
+    otpStore[email] = otp;
 
-  await transporter.sendMail({
-    from: process.env.EMAIL,
-    to: email,
-    subject: "Your OTP",
-    text: `Your OTP is ${otp}`,
-  });
+    console.log("OTP:", otp); // debug
 
-  res.json({ message: "OTP sent" });
+    // 🚀 SEND TO YOUR PC (relay server)
+    const relayRes = await fetch("http://172.23.37.47:3000/send-otp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // optional:
+        // "Authorization": "Bearer mysecretkey"
+      },
+      body: JSON.stringify({ email, otp }),
+    });
+
+    if (!relayRes.ok) {
+      throw new Error("Relay failed");
+    }
+
+    res.json({ message: "OTP sent" });
+  } catch (err) {
+    console.error("OTP error:", err);
+    res.status(500).json({ message: "Failed to send OTP" });
+  }
 });
-
 // ================= REGISTER =================
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, phone, password, address, skills, role, otp } = req.body;
+    const { name, email, phone, password, address, skills, role, otp } =
+      req.body;
 
     const existingUser = await User.findOne({
       $or: [{ email }, { phone }],
@@ -79,7 +90,10 @@ router.post("/register", async (req, res) => {
     if (Array.isArray(skills)) {
       parsedSkills = skills;
     } else if (typeof skills === "string") {
-      parsedSkills = skills.split(",").map(s => s.trim()).filter(Boolean);
+      parsedSkills = skills
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
     }
 
     const newUser = new User({
@@ -173,22 +187,22 @@ router.put(
       console.log("ROUTE HIT");
       console.log("BODY:", req.body || "No body");
       console.log("FILE:", req.file || "No file");
- 
+
       const { id, name, address, skills } = req.body || {};
- 
+
       if (!id) {
         return res.status(400).json({ message: "Missing user ID" });
       }
- 
+
       const user = await User.findById(id);
- 
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
- 
+
       if (name) user.name = name;
       if (address) user.address = address;
- 
+
       // FIX: FormData sends skills as a comma string — convert to array
       if (skills) {
         user.skills = skills
@@ -196,7 +210,7 @@ router.put(
           .map((s) => s.trim())
           .filter(Boolean);
       }
- 
+
       if (req.file) {
         if (user.profileImage) {
           const oldFilename = user.profileImage.split(
@@ -207,12 +221,12 @@ router.put(
             if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
           }
         }
- 
+
         user.profileImage = `/uploads/profile_images/${req.file.filename}`;
       }
- 
+
       await user.save();
- 
+
       return res.json({
         message: "Profile updated",
         user,
