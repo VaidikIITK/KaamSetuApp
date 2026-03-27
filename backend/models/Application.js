@@ -31,6 +31,11 @@ const applicationSchema = new mongoose.Schema({
         enum: ["pending", "accepted", "rejected"],
         default: "pending",
     },
+    // In your Application model
+status: { type: String, enum: ["pending", "accepted", "rejected", "completed"], default: "pending" },
+rating: { type: Number },
+review: { type: String },
+
 }, { timestamps: true });
 
 export default mongoose.model("Application", applicationSchema);

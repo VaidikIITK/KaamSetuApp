@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Modal,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -32,12 +33,7 @@ function StarRatingInput({
     <View style={{ flexDirection: "row", gap: 6 }}>
       {[1, 2, 3, 4, 5].map((i) => (
         <TouchableOpacity key={i} onPress={() => onRate(i)}>
-          <Text
-            style={{
-              fontSize: 28,
-              color: i <= rating ? Colors.starGold : "#DDD",
-            }}
-          >
+          <Text style={{ fontSize: 28, color: i <= rating ? Colors.starGold : "#DDD" }}>
             ★
           </Text>
         </TouchableOpacity>
@@ -58,6 +54,10 @@ export default function ApplicationsScreen() {
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState("");
   const [applications, setApplications] = useState<any[]>([]);
+  const [ratingModal, setRatingModal] = useState<{ visible: boolean; appId: string }>({
+    visible: false,
+    appId: "",
+  });
   const BASE_URL = "http://172.27.16.252:8030/api";
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
 
@@ -85,30 +85,101 @@ export default function ApplicationsScreen() {
     fetchApplications();
   }, [jobId]);
 
-  const acceptedApps = (applications || []).filter(
-    (a) => a.status === "accepted",
-  );
+  const acceptedApps = (applications || []).filter((a) => a.status === "accepted");
+  const requestedApps = (applications || []).filter((a) => a.status === "pending");
 
-  const requestedApps = (applications || []).filter(
-    (a) => a.status === "pending",
-  );
-
-  const handleEndWork = () => {
-    Alert.alert("End Work", "Confirm that you have completed the job?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Yes, Complete",
-        onPress: () => Alert.alert("Job marked as completed!"),
-      },
-    ]);
+  const handleEndWork = (applicationId: string) => {
+    setRatingModal({ visible: true, appId: applicationId });
   };
 
-  const handleSubmitRating = () => {
+  const handleRatingSubmit = async () => {
     if (rating === 0) {
       Alert.alert("Please select a rating.");
       return;
     }
-    Alert.alert("Thank you!", "Your rating has been submitted.");
+    const appId = ratingModal.appId;
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/applications/complete/${appId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rating, review }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRatingModal({ visible: false, appId: "" });
+        setApplications((prev: any[]) => prev.filter((a: any) => a._id !== appId));
+        setRating(0);
+        setReview("");
+        Alert.alert("Thank you!", "Your rating has been submitted.");
+      } else {
+        Alert.alert("Error", data.message || "Failed to submit rating");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Something went wrong");
+    }
+  };
+
+  const handleSkipRating = async () => {
+    const appId = ratingModal.appId;
+    try {
+      const token = await AsyncStorage.getItem("token");
+      await fetch(`${BASE_URL}/applications/complete/${appId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rating: null, review: null }),
+      });
+    } catch (err) {
+      console.log(err);
+    }
+    setRatingModal({ visible: false, appId: "" });
+    setApplications((prev: any[]) => prev.filter((a: any) => a._id !== appId));
+    setRating(0);
+    setReview("");
+  };
+
+  const handleAccept = async (applicationId: string) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/applications/accept/${applicationId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert("Success", "Worker accepted!");
+        fetchApplications();
+      } else {
+        Alert.alert("Error", data.message || "Failed to accept");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Something went wrong");
+    }
+  };
+
+  const handleReject = async (applicationId: string) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      const res = await fetch(`${BASE_URL}/applications/reject/${applicationId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Alert.alert("Success", "Worker rejected!");
+        fetchApplications();
+      } else {
+        Alert.alert("Error", data.message || "Failed to reject");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Something went wrong");
+    }
   };
 
   return (
@@ -136,12 +207,7 @@ export default function ApplicationsScreen() {
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
             <View style={[styles.tabBadge, tab === t && styles.tabBadgeActive]}>
-              <Text
-                style={[
-                  styles.tabBadgeText,
-                  tab === t && { color: Colors.white },
-                ]}
-              >
+              <Text style={[styles.tabBadgeText, tab === t && { color: Colors.white }]}>
                 {t === "accepted" ? acceptedApps.length : requestedApps.length}
               </Text>
             </View>
@@ -149,10 +215,7 @@ export default function ApplicationsScreen() {
         ))}
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {tab === "accepted" ? (
           acceptedApps.length === 0 ? (
             <View style={styles.empty}>
@@ -160,32 +223,35 @@ export default function ApplicationsScreen() {
             </View>
           ) : (
             acceptedApps.map((app) => (
-              <View key={app.applicationID} style={styles.acceptedCard}>
-                {/* Status Banner */}
+              <View key={app._id} style={styles.acceptedCard}>
                 <View style={styles.inProgressBanner}>
                   <Text style={styles.inProgressIcon}>✅</Text>
                   <Text style={styles.inProgressText}>WORK IN PROGRESS</Text>
                 </View>
 
-                {/* Job Summary */}
                 <View style={styles.section}>
-                  <Text style={styles.jobTitle}>{app.jobId?.category}</Text>
-
-                  <Text style={styles.jobMeta}>
-                    Status: Accepted ·{" "}
-                    {new Date(app.createdAt).toLocaleDateString()}
-                  </Text>
+                  <Text style={styles.detailsHeading}>Worker Details</Text>
+                  {[
+                    ["Name", app.workerId?.name || "-"],
+                    ["Phone", app.workerId?.phone || "-"],
+                    ["Address", app.workerId?.address || "-"],
+                    ["Skills", app.workerId?.skills?.join(", ") || "-"],
+                  ].map(([k, v]) => (
+                    <View key={k} style={styles.detailRow}>
+                      <Text style={styles.detailKey}>{k}:</Text>
+                      <Text style={styles.detailVal}>{v}</Text>
+                    </View>
+                  ))}
                 </View>
 
-                {/* Job Details */}
                 <View style={styles.detailsBox}>
                   <Text style={styles.detailsHeading}>Job Details</Text>
                   {[
-                    ["Job Type", app.jobTitle.split(" at ")[0]],
-                    ["Description", app.description],
-                    ["Location", app.jobLocation],
-                    ["Date Posted", app.datePosted],
-                    ["Expected Pay", `₹${app.expectedPay}`],
+                    ["Category", app.jobId?.category || "-"],
+                    ["Description", app.jobId?.description || "-"],
+                    ["Location", app.jobId?.address || "-"],
+                    ["Expected Pay", `₹${app.expectedPay || "-"}`],
+                    ["Applied", new Date(app.createdAt).toLocaleDateString()],
                   ].map(([k, v]) => (
                     <View key={k} style={styles.detailRow}>
                       <Text style={styles.detailKey}>{k}:</Text>
@@ -196,40 +262,16 @@ export default function ApplicationsScreen() {
 
                 <TouchableOpacity
                   style={styles.endWorkBtn}
-                  onPress={handleEndWork}
+                  onPress={() => handleEndWork(app._id)}
                 >
                   <Text style={styles.endWorkText}>End Work</Text>
                 </TouchableOpacity>
-
-                {/* Rate User */}
-                <View style={styles.rateBox}>
-                  <Text style={styles.rateTitle}>Rate User</Text>
-                  <StarRatingInput rating={rating} onRate={setRating} />
-                  <TextInput
-                    style={styles.reviewInput}
-                    value={review}
-                    onChangeText={setReview}
-                    placeholder="Write a review..."
-                    placeholderTextColor={Colors.textMuted}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                  <TouchableOpacity
-                    style={styles.submitRatingBtn}
-                    onPress={handleSubmitRating}
-                  >
-                    <Text style={styles.submitRatingText}>Submit Rating</Text>
-                  </TouchableOpacity>
-                </View>
               </View>
             ))
           )
         ) : requestedApps.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              No pending/rejected applications.
-            </Text>
+            <Text style={styles.emptyText}>No pending/rejected applications.</Text>
           </View>
         ) : (
           requestedApps.map((app) => (
@@ -242,42 +284,72 @@ export default function ApplicationsScreen() {
             >
               <View style={styles.requestedTopRow}>
                 <View style={{ flex: 1 }}>
-                  {/* ✅ REPLACED */}
-                  <Text style={styles.jobTitle}>{app.jobId?.category}</Text>
-
+                  <Text style={styles.jobTitle}>
+                    {app.workerId?.name || app.jobId?.category || "Applicant"}
+                  </Text>
                   <Text
                     style={[
                       styles.statusText,
-                      {
-                        color:
-                          app.status === "rejected"
-                            ? Colors.error
-                            : Colors.warning,
-                      },
+                      { color: app.status === "rejected" ? Colors.error : Colors.warning },
                     ]}
                   >
-                    Status:{" "}
-                    {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                    Status: {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
                   </Text>
                 </View>
-
                 <StatusIcon status={app.status} />
               </View>
 
-              {/* ✅ REPLACED */}
               <Text style={styles.jobMeta}>
                 Applied: {new Date(app.createdAt).toLocaleDateString()}
               </Text>
+              <Text style={styles.jobMeta}>Expected Pay: ₹{app.expectedPay}</Text>
 
-              <Text style={styles.jobMeta}>
-                Expected Pay: ₹{app.expectedPay}
-              </Text>
+              {app.status === "pending" && (
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+                  <TouchableOpacity style={styles.acceptBtn} onPress={() => handleAccept(app._id)}>
+                    <Text style={styles.acceptBtnText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.rejectBtn} onPress={() => handleReject(app._id)}>
+                    <Text style={styles.rejectBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           ))
         )}
-
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Rating Modal */}
+      <Modal transparent animationType="fade" visible={ratingModal.visible}>
+        <View style={styles.overlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Rate the Worker</Text>
+            <Text style={styles.modalSubtitle}>How was your experience?</Text>
+
+            <StarRatingInput rating={rating} onRate={setRating} />
+
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Write a review (optional)..."
+              placeholderTextColor="#aaa"
+              value={review}
+              onChangeText={setReview}
+              multiline
+              numberOfLines={3}
+            />
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+              <TouchableOpacity style={styles.skipBtn} onPress={handleSkipRating}>
+                <Text style={styles.skipBtnText}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.submitRatingBtn} onPress={handleRatingSubmit}>
+                <Text style={styles.submitRatingText}>Submit & End</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -293,12 +365,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   backBtn: { width: 36, justifyContent: "center" },
-  backText: {
-    color: Colors.white,
-    fontSize: 28,
-    fontWeight: "300",
-    lineHeight: 32,
-  },
+  backText: { color: Colors.white, fontSize: 28, fontWeight: "300", lineHeight: 32 },
   headerTitle: { color: Colors.white, fontSize: 18, fontWeight: "700" },
 
   tabBar: {
@@ -330,11 +397,9 @@ const styles = StyleSheet.create({
   tabBadgeText: { fontSize: 11, fontWeight: "700", color: Colors.primary },
 
   scrollContent: { padding: Spacing.md, gap: 14 },
-
   empty: { padding: 60, alignItems: "center" },
   emptyText: { color: Colors.textMuted, fontSize: 14 },
 
-  // Accepted card
   acceptedCard: {
     backgroundColor: Colors.cardBg,
     borderRadius: Radius.lg,
@@ -381,12 +446,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   detailRow: { flexDirection: "row", gap: 8 },
-  detailKey: {
-    width: 80,
-    fontSize: 12,
-    fontWeight: "700",
-    color: Colors.textSecondary,
-  },
+  detailKey: { width: 80, fontSize: 12, fontWeight: "700", color: Colors.textSecondary },
   detailVal: { flex: 1, fontSize: 12, color: Colors.textPrimary },
 
   endWorkBtn: {
@@ -399,12 +459,9 @@ const styles = StyleSheet.create({
   },
   endWorkText: { color: Colors.white, fontWeight: "700", fontSize: 15 },
 
-  rateBox: {
-    margin: Spacing.md,
-    gap: 12,
-    alignItems: "center",
-  },
+  rateBox: { margin: Spacing.md, gap: 12, alignItems: "center" },
   rateTitle: { fontSize: 17, fontWeight: "700", color: Colors.textPrimary },
+
   reviewInput: {
     width: "100%",
     borderWidth: 1.5,
@@ -417,14 +474,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.offWhite,
   },
   submitRatingBtn: {
+    flex: 1,
     backgroundColor: Colors.accentDark,
     borderRadius: Radius.full,
-    paddingVertical: 10,
-    paddingHorizontal: 40,
+    paddingVertical: 11,
+    alignItems: "center",
   },
   submitRatingText: { color: Colors.white, fontWeight: "700", fontSize: 14 },
 
-  // Requested cards
   requestedCard: {
     backgroundColor: Colors.primaryPale,
     borderRadius: Radius.md,
@@ -443,4 +500,48 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: "#2E7D32",
+    borderRadius: Radius.full,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  acceptBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: "#C62828",
+    borderRadius: Radius.full,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  rejectBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.lg,
+    padding: 24,
+    width: "100%",
+    alignItems: "center",
+    gap: 14,
+    ...Shadow.md,
+  },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: Colors.textPrimary },
+  modalSubtitle: { fontSize: 13, color: Colors.textMuted },
+  skipBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+    borderRadius: Radius.full,
+    paddingVertical: 11,
+    alignItems: "center",
+  },
+  skipBtnText: { color: Colors.textSecondary, fontWeight: "600", fontSize: 14 },
 });

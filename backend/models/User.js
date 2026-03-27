@@ -14,6 +14,19 @@ const userSchema = new mongoose.Schema({
         enum: ["user", "worker"],
         default: "user",
     },
+    ratings: [
+      {
+        rating: { type: Number, min: 1, max: 5 },
+        review: { type: String },
+        givenBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        createdAt: { type: Date, default: Date.now },
+      }
+    ],
+    averageRating: { type: Number, default: 0 },
+    totalRatings: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
 
     // ================= REFERRALS =================
     referrals: [{

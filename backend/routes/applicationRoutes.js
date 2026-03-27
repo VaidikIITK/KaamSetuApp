@@ -7,6 +7,7 @@ import auth from "../middleware/auth.js";
 import Application from "../models/Application.js";
 import Chat from "../models/Chat.js";
 import Job from "../models/Job.js";
+import User from "../models/User.js"; // 👈 add this
 
 const router = express.Router();
 
@@ -339,5 +340,53 @@ router.get("/received", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// PUT /api/applications/complete/:applicationId
+router.put("/complete/:applicationId", auth, async (req, res) => {
+  try {
+    const { rating, review } = req.body;
+    console.log("COMPLETE CALLED - rating:", rating, "review:", review); // 👈
+
+    const application = await Application.findById(req.params.applicationId);
+    console.log("Application found:", application?._id, "workerId:", application?.workerId); // 👈
+
+    if (!application) return res.status(404).json({ message: "Application not found" });
+
+    application.status = "completed";
+    application.rating = rating;
+    application.review = review;
+    await application.save();
+
+    if (rating) {
+      const worker = await User.findById(application.workerId);
+      console.log("Worker found:", worker?._id, "current avg:", worker?.averageRating); // 👈
+
+      worker.ratings.push({ rating, review, givenBy: req.user.id });
+      worker.totalRatings = worker.ratings.length;
+      worker.averageRating =
+        worker.ratings.reduce((sum, r) => sum + r.rating, 0) / worker.ratings.length;
+
+      console.log("New averageRating:", worker.averageRating); // 👈
+      await worker.save();
+    }
+
+    res.json({ message: "Work completed and rating saved!" });
+  } catch (err) {
+    console.log("COMPLETE ERROR:", err); // 👈
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/auth/me
+router.get("/me", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    console.log("ME route - averageRating:", user?.averageRating); // 👈
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 
 export default router;

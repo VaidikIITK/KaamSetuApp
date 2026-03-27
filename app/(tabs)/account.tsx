@@ -68,7 +68,9 @@ function StarRating({ rating }: { rating: number }) {
           ★
         </Text>
       ))}
-      <Text style={styles.ratingText}> ({rating})</Text>
+      <Text style={styles.ratingText}>
+        ({rating > 0 ? rating.toFixed(1) : "0"})
+      </Text>
     </View>
   );
 }
@@ -112,7 +114,9 @@ type UserType = {
   address?: string;
   skills?: string[];
   rating?: number;
-  profileImage?: string;
+  averageRating?: number;  // 👈 add this
+  totalRatings?: number;   // 👈 add this
+  profileImage?: string; // 🔥 ADD THIS
   role?: string;
 };
 
@@ -187,7 +191,18 @@ export default function AccountScreen() {
       }
 
       const parsedUser: UserType = JSON.parse(userString);
-      setUser(parsedUser);
+
+// Fetch fresh user data from API to get updated rating
+const userRes = await fetch(`${API_URL}/api/auth/me`, {
+  headers: { Authorization: `Bearer ${token}` },
+});
+if (userRes.ok) {
+  const userData = await userRes.json();
+  setUser(userData.user || parsedUser);
+  await AsyncStorage.setItem("user", JSON.stringify(userData.user || parsedUser));
+} else {
+  setUser(parsedUser);
+}
 
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -625,7 +640,7 @@ export default function AccountScreen() {
                 </TouchableOpacity>
               </View>
 
-              <StarRating rating={user?.rating || 0} />
+             <StarRating rating={user?.averageRating || 0} />
 
               {/* Role badge */}
               {user?.role && (
