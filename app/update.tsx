@@ -162,7 +162,7 @@ export default function UpdateProfileScreen() {
       }
 
       const res = await fetch(
-        "${API_BASE}/auth/update-profile",
+        `${API_BASE}/auth/update-profile`,
         {
           method: "PUT",
           body: formData,

@@ -96,7 +96,7 @@ export default function Register() {
         return;
       }
       setSendingOtp(true); // 🔥 START LOADING
-      const res = await fetch("${API_BASE}/auth/send-otp", {
+      const res = await fetch(`${API_BASE}/auth/send-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -146,7 +146,7 @@ export default function Register() {
         return;
       }
 
-      const res = await fetch("${API_BASE}/auth/register", {
+      const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

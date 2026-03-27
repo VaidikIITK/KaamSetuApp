@@ -96,7 +96,7 @@ export default function WorkerProfileScreen() {
         return;
       }
 
-      const res = await fetch("${API_BASE}/chat/create", {
+      const res = await fetch(`${API_BASE}/chat/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
